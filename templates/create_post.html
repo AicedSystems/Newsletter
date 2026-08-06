@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#050b14">
+
+    <title>Create Post | Rise Dashboard</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/styles.css') }}"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/create_post.css') }}"
+    >
+
+    <script
+        src="{{ url_for('static', filename='js/create_post.js') }}"
+        defer
+    ></script>
+</head>
+
+<body>
+    <header class="app-header">
+        <div class="theme-selector">
+            <label class="visually-hidden" for="theme-selector">
+                Select color theme
+            </label>
+
+            <select id="theme-selector" class="theme-selector__select">
+                <option value="midnight">Midnight Gold</option>
+                <option value="obsidian">Obsidian Silver</option>
+                <option value="sage">Sage Estate</option>
+            </select>
+        </div>
+        <nav class="top-navigation" aria-label="Main navigation">
+            <form class="search-form" role="search">
+                <label class="visually-hidden" for="global-search">Search posts, members, and topics</label>
+                <svg class="search-form__icon" aria-hidden="true" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <path d="m20 20-4-4"></path>
+                </svg>
+                <input class="search-form__input" id="global-search" name="query" type="search"
+                    placeholder="Search posts, members, topics..." autocomplete="off">
+            </form>
+
+            <div class="navigation-actions">
+                <button class="icon-button" type="button" aria-label="Notifications, 3 unread">
+                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
+                        <path d="M10 21h4"></path>
+                    </svg>
+                    <span class="count-badge" aria-hidden="true">3</span>
+                </button>
+
+                <button class="icon-button" type="button" aria-label="Messages, 2 unread">
+                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                        <path d="m3 7 9 6 9-6"></path>
+                    </svg>
+                    <span class="count-badge" aria-hidden="true">2</span>
+                </button>
+
+                <button class="profile-button" type="button" aria-label="Open profile menu">
+                    <span class="profile-button__avatar" aria-hidden="true">Chris</span>
+                </button>
+            </div>
+
+        </nav>
+    </header>
+    <!-- Copy your existing dashboard header here. -->
+    <!-- Copy everything from <header class="app-header"> through </header>. -->
+
+    <main class="post-editor-page" id="main-content">
+        <div class="post-editor-layout" id="post-form">
+            <section
+                class="post-editor-card"
+                aria-labelledby="create-post-title"
+            >
+                <header class="post-editor-card__header">
+                    <div>
+                        <a
+                            class="post-editor-card__back-link"
+                            href="{{ url_for('dashboard') }}"
+                        >
+                            <span aria-hidden="true">←</span>
+                            Dashboard
+                        </a>
+
+                        <h1
+                            class="post-editor-card__title"
+                            id="create-post-title"
+                        >
+                            Create new post
+                        </h1>
+
+                        <p class="post-editor-card__description">
+                            Share insights, market updates, and stories
+                            with your audience.
+                        </p>
+                    </div>
+
+                    <div class="post-editor-card__actions">
+                        <button
+                            class="editor-button editor-button--secondary"
+                            type="button"
+                            id="save-draft-button"
+                        >
+                            Save draft
+                        </button>
+
+                        <button
+                            class="editor-button editor-button--accent"
+                            type="button"
+                            id="preview-button"
+                        >
+                            Preview
+                        </button>
+                    </div>
+                </header>
+
+                <div class="post-editor-card__body">
+                    <div class="editor-field">
+                        <div class="editor-field__heading">
+                            <label class="editor-field__label" for="post-title">
+                                Post title
+                            </label>
+
+                            <span
+                                class="editor-field__counter"
+                                id="title-character-count"
+                                aria-live="polite"
+                            >
+                                0/100
+                            </span>
+                        </div>
+
+                        <input
+                            class="editor-field__input"
+                            id="post-title"
+                            name="title"
+                            type="text"
+                            maxlength="100"
+                            placeholder="Enter a clear, compelling title"
+                            aria-describedby="title-character-count"
+                            required
+                        >
+                    </div>
+
+                    <div class="editor-field">
+                        <div class="editor-field__heading">
+                            <label class="editor-field__label" for="post-content">
+                                Content
+                            </label>
+
+                            <span
+                                class="editor-field__counter"
+                                id="content-word-count"
+                                aria-live="polite"
+                            >
+                                0 words
+                            </span>
+                        </div>
+
+                        <div class="content-editor">
+                            <div class="content-editor__toolbar" aria-hidden="true">
+                                <span>Paragraph</span>
+
+                                <span class="content-editor__toolbar-divider"></span>
+
+                                <strong>B</strong>
+                                <em>I</em>
+                                <span class="content-editor__underline">U</span>
+                            </div>
+
+                            <textarea
+                                class="content-editor__textarea"
+                                id="post-content"
+                                name="content"
+                                rows="18"
+                                placeholder="Write your post content..."
+                                aria-describedby="content-word-count"
+                                required
+                            ></textarea>
+
+                            <div class="content-editor__footer">
+                                <span>Draft editor</span>
+
+                                <span class="content-editor__save-status">
+                                    Not saved
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <aside
+                class="post-publishing-sidebar"
+                aria-label="Publishing controls"
+            >
+                <section
+                    class="publishing-card"
+                    aria-labelledby="publishing-options-title"
+                >
+                    <h2
+                        class="publishing-card__title"
+                        id="publishing-options-title"
+                    >
+                        Publish options
+                    </h2>
+
+                    <div class="publishing-fields">
+                        <div class="publishing-field">
+                            <label class="publishing-field__label" for="post-category">
+                                Category
+                            </label>
+
+                            <select
+                                class="publishing-field__control"
+                                id="post-category"
+                                name="category"
+                                required
+                            >
+                                <option value="">Select a category</option>
+                                <option value="market-updates">Market Updates</option>
+                                <option value="recruiting">Recruiting</option>
+                                <option value="success-stories">Success Stories</option>
+                                <option value="training">Training</option>
+                            </select>
+                        </div>
+
+                        <div class="publishing-field">
+                            <label class="publishing-field__label" for="post-tags">
+                                Tags
+                            </label>
+
+                            <input
+                                class="publishing-field__control"
+                                id="post-tags"
+                                name="tags"
+                                type="text"
+                                placeholder="Luxury, Market Trends, Buyers"
+                                aria-describedby="post-tags-help"
+                            >
+
+                            <p class="publishing-field__help" id="post-tags-help">
+                                Separate each tag with a comma.
+                            </p>
+                        </div>
+
+                        <div class="publishing-field">
+                            <div class="publishing-field__heading">
+                                <label
+                                    class="publishing-field__label"
+                                    for="post-excerpt"
+                                >
+                                    Excerpt
+                                </label>
+
+                                <span
+                                    class="publishing-field__counter"
+                                    id="excerpt-character-count"
+                                    aria-live="polite"
+                                >
+                                    0/160
+                                </span>
+                            </div>
+
+                            <textarea
+                                class="publishing-field__control publishing-field__control--textarea"
+                                id="post-excerpt"
+                                name="excerpt"
+                                rows="5"
+                                maxlength="160"
+                                placeholder="Write a short summary for the post card..."
+                                aria-describedby="excerpt-character-count"
+                                required
+                            ></textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <section
+                    class="publishing-card"
+                    aria-labelledby="post-preview-title"
+                >
+                    <h2
+                        class="publishing-card__title"
+                        id="post-preview-title"
+                    >
+                        Post preview
+                    </h2>
+
+                    <article class="editor-preview" id="post-preview">
+                        <div class="editor-preview__media">
+                            <img
+                                class="editor-preview__image"
+                                id="preview-image"
+                                src="{{ url_for('static', filename='images/collov-home-design-qWXGmMRe4so-unsplash.webp') }}"
+                                alt=""
+                            >
+                        </div>
+
+                        <div class="editor-preview__content">
+                            <p class="editor-preview__category" id="preview-category">
+                                Select a category
+                            </p>
+
+                            <h3 class="editor-preview__title" id="preview-title">
+                                Your post title will pop up here
+                            </h3>
+
+                            <p class="editor-preview__excerpt" id="preview-excerpt">
+                                add the description and info of post
+                            </p>
+
+                            <div class="editor-preview__meta">
+                                <span class="editor-preview__avatar" aria-hidden="true">
+                                    EC
+                                </span>
+
+                                <span class="editor-preview__author">
+                                    <strong>Eric Cuss</strong>
+                                    <span>August 6, 2026 · 5 min read</span>
+                                </span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <div class="publishing-action">
+                        <label
+                            class="visually-hidden"
+                            for="publishing-action-selector"
+                        >
+                            Choose publishing action
+                        </label>
+
+                        <select
+                            class="publishing-action__select"
+                            id="publishing-action-selector"
+                            name="publishing_action"
+                        >
+                            <option value="publish">Publish post</option>
+                            <option value="campaign">Send as campaign</option>
+                            <option value="both">Publish and send</option>
+                        </select>
+
+                        <button
+                            class="publish-button"
+                            id="publish-post-button"
+                            type="button"
+                        >
+                            <svg
+                                class="publish-button__icon"
+                                aria-hidden="true"
+                                viewBox="0 0 24 24"
+                            >
+                                <path d="m22 2-7 20-4-9-9-4Z"></path>
+                                <path d="M22 2 11 13"></path>
+                            </svg>
+
+                            <span id="publishing-action-label">
+                                Publish post
+                            </span>
+                        </button>
+                    </div>
+
+                    <p
+                        class="publishing-status"
+                        id="publishing-status"
+                        aria-live="polite"
+                    ></p>
+                </section>
+            </aside>
+        </div>
+    </main>
+</body>
+</html>
