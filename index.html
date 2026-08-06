@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#050b14">
+    <title>Rise Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
+</head>
+
+<body>
+    <header class="app-header">
+        <div class="theme-selector">
+            <label class="visually-hidden" for="theme-selector">
+                Select color theme
+            </label>
+        
+            <select id="theme-selector" class="theme-selector__select">
+                <option value="midnight">Midnight Gold</option>
+                <option value="obsidian">Obsidian Silver</option>
+                <option value="sage">Sage Estate</option>
+            </select>
+        </div>
+        <nav class="top-navigation" aria-label="Main navigation">
+            <form class="search-form" role="search">
+                <label class="visually-hidden" for="global-search">Search posts, members, and topics</label>
+                <svg class="search-form__icon" aria-hidden="true" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <path d="m20 20-4-4"></path>
+                </svg>
+                <input class="search-form__input" id="global-search" name="query" type="search"
+                    placeholder="Search posts, members, topics..." autocomplete="off">
+            </form>
+
+            <div class="navigation-actions">
+                <button class="icon-button" type="button" aria-label="Notifications, 3 unread">
+                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
+                        <path d="M10 21h4"></path>
+                    </svg>
+                    <span class="count-badge" aria-hidden="true">3</span>
+                </button>
+
+                <button class="icon-button" type="button" aria-label="Messages, 2 unread">
+                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                        <path d="m3 7 9 6 9-6"></path>
+                    </svg>
+                    <span class="count-badge" aria-hidden="true">2</span>
+                </button>
+
+                <button class="profile-button" type="button" aria-label="Open profile menu">
+                    <span class="profile-button__avatar" aria-hidden="true">Chris</span>
+                </button>
+            </div>
+
+        </nav>
+    </header>
+
+    <main class="dashboard" id="main-content">
+        <div class="dashboard__layout">
+
+            <aside class="dashboard__sidebar dashboard__sidebar--left">
+                <h2 class="visually-hidden">Profile and shortcuts</h2>
+
+                <article class="profile-card">
+                    <div class="profile-card__cover" aria-hidden="true"></div>
+
+                    <div class="profile-card__body">
+                        <div class="profile-card__avatar" aria-hidden="true">
+                            EC
+                        </div>
+
+                        <a class="profile-card__profile-link" href="/profile">
+                            <h2 class="profile-card__name">Eric Cuss</h2>
+                            <p class="profile-card__role">Real Estate Broker</p>
+                            <p class="profile-card__location">Palmdale, California</p>
+                        </a>
+
+                        <a class="profile-card__settings-link" href="/settings/profile">
+                            Edit profile
+                        </a>
+                    </div>
+                </article>
+
+                <nav class="shortcut-card" aria-label="Personal tools">
+                    <ul class="shortcut-card__list">
+                        <li class="shortcut-card__item">
+                            <a class="shortcut-card__link" href="/saved-posts">
+                                <svg class="shortcut-card__icon" aria-hidden="true" viewBox="0 0 24 24">
+                                    <path d="M6 4h12v17l-6-4-6 4V4Z"></path>
+                                </svg>
+
+                                <span>Saved posts</span>
+                            </a>
+                        </li>
+
+                        <li class="shortcut-card__item">
+                            <a class="shortcut-card__link" href="/analytics">
+                                <svg class="shortcut-card__icon" aria-hidden="true" viewBox="0 0 24 24">
+                                    <path d="M4 20V10"></path>
+                                    <path d="M10 20V4"></path>
+                                    <path d="M16 20v-7"></path>
+                                    <path d="M22 20V7"></path>
+                                </svg>
+
+                                <span>Analytics</span>
+                            </a>
+                        </li>
+
+                        <li class="shortcut-card__item">
+                            <a class="shortcut-card__link" href="/campaigns">
+                                <svg class="shortcut-card__icon" aria-hidden="true" viewBox="0 0 24 24">
+                                    <path d="m3 11 18-7v16l-18-7v-2Z"></path>
+                                    <path d="M7 14v5a2 2 0 0 0 2 2h2v-6"></path>
+                                </svg>
+
+                                <span>Campaigns</span>
+                            </a>
+                        </li>
+
+                    </ul>
+                </nav>
+
+                <div class="create-post-card">
+                    <a class="create-post-button" href="/posts/new">
+                        <svg class="create-post-button__icon" aria-hidden="true" viewBox="0 0 24 24">
+                            <path d="M12 20h9"></path>
+                            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path>
+                        </svg>
+
+                        <span>Create post</span>
+                    </a>
+                </div>
+            </aside>
+            <!-- ///////////// MAIN SECTION//////////// -->
+            <section class="dashboard__content" aria-labelledby="dashboard-title">
+                <h1 class="visually-hidden" id="dashboard-title">
+                    Eric Cuss dashboard
+                </h1>
+                <article class="featured-post">
+                    <a class="featured-post__link" href="/posts/2026-luxury-market-outlook">
+                        <div class="featured-post__media">
+                            <img class="featured-post__image" src="collov-home-design-qWXGmMRe4so-unsplash.webp"
+                                alt="Modern luxury home illuminated at dusk">
+                        </div>
+
+                        <div class="featured-post__content">
+                            <p class="featured-post__eyebrow">
+                                Featured market update
+                            </p>
+
+                            <h2 class="featured-post__title">
+                                How We Helped 8 Realtors Close More Deals This Month
+                            </h2>
+
+                            <p class="featured-post__summary">
+                                Explore the trends shaping luxury real estate and
+                                the opportunities ahead for agents and their clients.
+                            </p>
+
+                            <div class="featured-post__meta">
+                                <span>Eric Cuss</span>
+                                <time datetime="2026-08-05">August 6, 2026</time>
+                            </div>
+                        </div>
+                    </a>
+                </article>
+
+                <section class="post-feed" aria-labelledby="latest-posts-title">
+                    <div class="post-feed__heading">
+                        <div>
+                            <p class="post-feed__eyebrow">Latest insights</p>
+                            <h2 class="post-feed__title" id="latest-posts-title">
+                                Latest posts
+                            </h2>
+                        </div>
+                    </div>
+
+                    <div class="post-feed__list" id="post-list"></div>
+
+                    <div class="post-feed__footer">
+                        <button class="post-feed__load-button" id="load-more-posts" type="button">
+                            Load more posts
+                        </button>
+
+                        <p class="visually-hidden" id="post-load-status" aria-live="polite"></p>
+                    </div>
+                </section>
+
+                <template id="post-card-template">
+                    <article class="post-card">
+                        <a class="post-card__link" href="">
+                            <div class="post-card__content">
+                                <p class="post-card__category"></p>
+                                <h3 class="post-card__title"></h3>
+                                <p class="post-card__summary"></p>
+
+                                <div class="post-card__meta">
+                                    <span class="post-card__author"></span>
+                                    <time class="post-card__date"></time>
+                                </div>
+                            </div>
+
+                            <span class="post-card__arrow" aria-hidden="true">
+                                →
+                            </span>
+                        </a>
+                    </article>
+                </template>
+
+
+            </section>
+
+            <aside class="dashboard__sidebar dashboard__sidebar--right">
+                <h2 class="visually-hidden">Additional information</h2>
+
+                <section class="performance-card" aria-labelledby="performance-title">
+                    <div class="performance-card__header">
+                        <h2 class="performance-card__title" id="performance-title">
+                            Newsletter performance
+                        </h2>
+
+                        <div class="performance-card__filter">
+                            <label class="visually-hidden" for="performance-period">
+                                Select performance period
+                            </label>
+
+                            <select class="performance-card__select" id="performance-period" name="performance-period">
+                                <option value="month">This month</option>
+                                <option value="previous-month">Previous month</option>
+                                <option value="year">This year</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="performance-card__body">
+                        <div class="performance-card__chart" role="img" aria-label="Open rate: 42 percent">
+                            <div class="performance-card__chart-center">
+                                <strong class="performance-card__percentage">
+                                    42%
+                                </strong>
+
+                                <span class="performance-card__chart-label">
+                                    Open rate
+                                </span>
+                            </div>
+                        </div>
+
+                        <dl class="performance-card__metrics">
+                            <div class="performance-card__metric">
+                                <dt>Emails sent</dt>
+                                <dd>1,248</dd>
+                            </div>
+
+                            <div class="performance-card__metric">
+                                <dt>Unique opens</dt>
+                                <dd>523</dd>
+                            </div>
+
+                            <div class="performance-card__metric">
+                                <dt>Clicks</dt>
+                                <dd>198</dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                    <div class="performance-card__footer">
+                        <a class="performance-card__analytics-link" href="/analytics">
+                            View full analytics
+                            <span aria-hidden="true">→</span>
+                        </a>
+                    </div>
+                </section>
+
+                <section class="events-card" aria-labelledby="upcoming-events-title">
+                    <div class="events-card__header">
+                        <h2 class="events-card__title" id="upcoming-events-title">
+                            Upcoming events
+                        </h2>
+
+                        <a class="events-card__calendar-link" href="/calendar">
+                            View calendar
+                            <span aria-hidden="true">→</span>
+                        </a>
+                    </div>
+
+                    <ul class="events-card__list">
+                        <li class="events-card__item">
+                            <a class="events-card__event-link" href="/events/broker-meeting">
+                                <span class="events-card__date" aria-hidden="true">
+                                    <span class="events-card__month">Aug</span>
+                                    <span class="events-card__day">12</span>
+                                </span>
+
+                                <span class="events-card__details">
+                                    <span class="events-card__event-name">
+                                        Broker Meeting
+                                    </span>
+
+                                    <time class="events-card__time" datetime="2026-08-12T10:00:00-07:00">
+                                        August 12 · 10:00 AM
+                                    </time>
+                                </span>
+                            </a>
+                        </li>
+
+                        <li class="events-card__item">
+                            <a class="events-card__event-link" href="/events/new-agent-orientation">
+                                <span class="events-card__date" aria-hidden="true">
+                                    <span class="events-card__month">Aug</span>
+                                    <span class="events-card__day">18</span>
+                                </span>
+
+                                <span class="events-card__details">
+                                    <span class="events-card__event-name">
+                                        New Agent Orientation
+                                    </span>
+
+                                    <time class="events-card__time" datetime="2026-08-18T11:00:00-07:00">
+                                        August 18 · 11:00 AM
+                                    </time>
+                                </span>
+                            </a>
+                        </li>
+
+                        <li class="events-card__item">
+                            <a class="events-card__event-link" href="/events/marketing-workshop">
+                                <span class="events-card__date" aria-hidden="true">
+                                    <span class="events-card__month">Aug</span>
+                                    <span class="events-card__day">27</span>
+                                </span>
+
+                                <span class="events-card__details">
+                                    <span class="events-card__event-name">
+                                        Marketing Workshop
+                                    </span>
+
+                                    <time class="events-card__time" datetime="2026-08-27T14:00:00-07:00">
+                                        August 27 · 2:00 PM
+                                    </time>
+                                </span>
+                            </a>
+                        </li>
+                    </ul>
+                </section>
+
+            </aside>
+        </div>
+    </main>
+    <nav class="mobile-navigation" aria-label="Mobile navigation">
+        <a
+            class="mobile-navigation__link"
+            href="/dashboard"
+            aria-current="page"
+        >
+            <svg
+                class="mobile-navigation__icon"
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+            >
+                <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+            </svg>
+    
+            <span>Dashboard</span>
+        </a>
+    
+        <a class="mobile-navigation__link" href="/campaigns">
+            <svg
+                class="mobile-navigation__icon"
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+            >
+                <path d="m3 11 18-7v16l-18-7v-2Z"></path>
+                <path d="M7 14v5a2 2 0 0 0 2 2h2v-6"></path>
+            </svg>
+    
+            <span>Campaigns</span>
+        </a>
+    
+        <a
+            class="mobile-navigation__create"
+            href="/posts/new"
+            aria-label="Create a new post"
+        >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M12 5v14"></path>
+                <path d="M5 12h14"></path>
+            </svg>
+        </a>
+    
+        <a class="mobile-navigation__link" href="/calendar">
+            <svg
+                class="mobile-navigation__icon"
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+            >
+                <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+                <path d="M16 3v4"></path>
+                <path d="M8 3v4"></path>
+                <path d="M3 10h18"></path>
+            </svg>
+    
+            <span>Calendar</span>
+        </a>
+    
+        <a class="mobile-navigation__link" href="/settings/profile">
+            <svg
+                class="mobile-navigation__icon"
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+            >
+                <circle cx="12" cy="8" r="4"></circle>
+                <path d="M4 21a8 8 0 0 1 16 0"></path>
+            </svg>
+    
+            <span>Profile</span>
+        </a>
+    </nav>
+</body>
+
+</html>
