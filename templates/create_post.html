@@ -26,6 +26,11 @@
     >
 
     <script
+        src="{{ url_for('static', filename='js/post_storage.js') }}"
+        defer
+    ></script>
+
+    <script
         src="{{ url_for('static', filename='js/create_post.js') }}"
         defer
     ></script>
@@ -82,8 +87,12 @@
     <!-- Copy your existing dashboard header here. -->
     <!-- Copy everything from <header class="app-header"> through </header>. -->
 
-    <main class="post-editor-page" id="main-content">
-        <div class="post-editor-layout" id="post-form">
+    <main class="post-editor-page"
+    id="main-content">
+        <form class="post-editor-layout"
+        id="post-form"
+        data-post-form
+        >
             <section
                 class="post-editor-card"
                 aria-labelledby="create-post-title"
@@ -116,6 +125,7 @@
                             class="editor-button editor-button--secondary"
                             type="button"
                             id="save-draft-button"
+                            data-post-status="draft"
                         >
                             Save draft
                         </button>
@@ -151,6 +161,7 @@
                             id="post-title"
                             name="title"
                             type="text"
+                            data-post-field="title"
                             maxlength="100"
                             placeholder="Enter a clear, compelling title"
                             aria-describedby="title-character-count"
@@ -189,6 +200,7 @@
                                 id="post-content"
                                 name="content"
                                 rows="18"
+                                data-post-field="content"
                                 placeholder="Write your post content..."
                                 aria-describedby="content-word-count"
                                 required
@@ -202,6 +214,19 @@
                                 </span>
                             </div>
                         </div>
+                    </div>
+                    <div class="editor-field">
+                        <label class="editor-field__label" for="post-featured-image">
+                            Featured image
+                        </label>
+
+                        <input
+                            id="post-featured-image"
+                            name="featured_image"
+                            data-post-field="featuredImage"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                        >
                     </div>
                 </div>
             </section>
@@ -231,6 +256,7 @@
                                 class="publishing-field__control"
                                 id="post-category"
                                 name="category"
+                                data-post-field="category"
                                 required
                             >
                                 <option value="">Select a category</option>
@@ -250,6 +276,7 @@
                                 class="publishing-field__control"
                                 id="post-tags"
                                 name="tags"
+                                data-post-field="tags"
                                 type="text"
                                 placeholder="Luxury, Market Trends, Buyers"
                                 aria-describedby="post-tags-help"
@@ -282,6 +309,7 @@
                                 class="publishing-field__control publishing-field__control--textarea"
                                 id="post-excerpt"
                                 name="excerpt"
+                                data-post-field="excerpt"
                                 rows="5"
                                 maxlength="160"
                                 placeholder="Write a short summary for the post card..."
@@ -360,6 +388,7 @@
                         <button
                             class="publish-button"
                             id="publish-post-button"
+                            data-post-status="published"
                             type="button"
                         >
                             <svg
@@ -384,7 +413,7 @@
                     ></p>
                 </section>
             </aside>
-        </div>
+        </form>
     </main>
 </body>
 </html>

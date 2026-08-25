@@ -15,7 +15,7 @@ searchForm.addEventListener("submit", (event) => {
     console.info(`Searching for: ${searchTerm}`);
 });
 ////post data
-const posts = [
+const demoPosts = [
     {
         category: "Market Updates",
         title: "What Luxury Buyers Are Looking for in 2026",
@@ -77,10 +77,61 @@ const posts = [
         url: "/posts/building-a-lasting-brokerage"
     }
 ];
+
+const categoryLabels = {
+    "market-updates": "Market Updates",
+    recruiting: "Recruiting",
+    "success-stories": "Success Stories",
+    training: "Training"
+};
+
+function formatPublishedDate(publishedDate) {
+    const date = new Date(publishedDate);
+
+    if (Number.isNaN(date.getTime())) {
+        return "Date unavailable";
+    }
+
+    return new Intl.DateTimeFormat("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric"
+    }).format(date);
+}
+
+function mapStoredPostToFeedPost(post) {
+    return {
+        id: post.id,
+        category: categoryLabels[post.category] || post.category,
+        title: post.title,
+        summary: post.excerpt,
+        author: "Eric Cuss",
+        publishedDate: post.publishedDate,
+        displayDate: formatPublishedDate(post.publishedDate),
+        url: `#post-${post.id}`,
+        isLocalPost: true
+    };
+}
+
+const localPublishedPosts = postStorage
+    .getPublishedPosts()
+    .filter((post) => post.status === "published")
+    .map(mapStoredPostToFeedPost);
+
+const posts = [...localPublishedPosts, ...demoPosts];
 const postList = document.querySelector("#post-list");
 const postTemplate = document.querySelector("#post-card-template");
 const loadMoreButton = document.querySelector("#load-more-posts");
 const postLoadStatus = document.querySelector("#post-load-status");
+const articleDialog = document.querySelector("#article-dialog");
+const articleDialogClose = document.querySelector("#article-dialog-close");
+const articleCategory = document.querySelector("#article-detail-category");
+const articleTitle = document.querySelector("#article-detail-title");
+const articleExcerpt = document.querySelector("#article-detail-excerpt");
+const articleDate = document.querySelector("#article-detail-date");
+const articleMedia = document.querySelector("#article-detail-media");
+const articleImage = document.querySelector("#article-detail-image");
+const articleContent = document.querySelector("#article-detail-content");
 
 const postsPerPage = 3;
 let visiblePostCount = 0;
@@ -96,6 +147,11 @@ function createPostCard(post) {
     const date = cardFragment.querySelector(".post-card__date");
 
     link.href = post.url;
+
+    if (post.isLocalPost) {
+        link.dataset.postId = post.id;
+    }
+
     category.textContent = post.category;
     title.textContent = post.title;
     summary.textContent = post.summary;
@@ -104,6 +160,38 @@ function createPostCard(post) {
     date.textContent = post.displayDate;
 
     return cardFragment;
+}
+
+function renderArticleDetail(post) {
+    articleCategory.textContent =
+        categoryLabels[post.category] || post.category;
+    articleTitle.textContent = post.title;
+    articleExcerpt.textContent = post.excerpt;
+    articleDate.dateTime = post.publishedDate;
+    articleDate.textContent = formatPublishedDate(post.publishedDate);
+    articleContent.textContent = post.content;
+
+    if (post.featuredImage) {
+        articleImage.src = post.featuredImage;
+        articleImage.alt = `Featured image for ${post.title}`;
+        articleMedia.hidden = false;
+    } else {
+        articleImage.removeAttribute("src");
+        articleImage.alt = "";
+        articleMedia.hidden = true;
+    }
+}
+
+function loadPost(postId) {
+    const post = postStorage.findPublishedPost(postId);
+
+    if (!post) {
+        console.error(`Unable to find published post: ${postId}`);
+        return;
+    }
+
+    renderArticleDetail(post);
+    articleDialog.showModal();
 }
 
 function loadMorePosts() {
@@ -129,6 +217,27 @@ function loadMorePosts() {
 }
 
 loadMoreButton.addEventListener("click", loadMorePosts);
+
+postList.addEventListener("click", (event) => {
+    const localPostLink = event.target.closest("[data-post-id]");
+
+    if (!localPostLink) {
+        return;
+    }
+
+    event.preventDefault();
+    loadPost(localPostLink.dataset.postId);
+});
+
+articleDialogClose.addEventListener("click", () => {
+    articleDialog.close();
+});
+
+articleDialog.addEventListener("click", (event) => {
+    if (event.target === articleDialog) {
+        articleDialog.close();
+    }
+});
 
 loadMorePosts();
 

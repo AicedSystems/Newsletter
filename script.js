@@ -155,3 +155,10 @@ if (savedTheme && supportedThemes.has(savedTheme)) {
 themeSelector.addEventListener("change", (event) => {
     applyTheme(event.target.value);
 });
+
+
+templates
+static
+static/css
+static/js
+static/images

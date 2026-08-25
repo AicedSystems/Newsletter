@@ -9,8 +9,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
-    <script src="script.js" defer></script>
+    <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/styles.css') }}" >
+    <script src="{{ url_for('static', filename='js/script.js') }}" defer></script>
 </head>
 
 <body>
@@ -146,7 +148,7 @@
                 <article class="featured-post">
                     <a class="featured-post__link" href="/posts/2026-luxury-market-outlook">
                         <div class="featured-post__media">
-                            <img class="featured-post__image" src="collov-home-design-qWXGmMRe4so-unsplash.webp"
+                            <img class="featured-post__image" src="{{ url_for('static', filename='images/featured-home.jpg') }}"
                                 alt="Modern luxury home illuminated at dusk">
                         </div>
 

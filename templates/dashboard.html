@@ -10,6 +10,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script
+        src="{{ url_for('static', filename='js/post_storage.js') }}"
+        defer
+    ></script>
     <script src="{{ url_for('static', filename='js/script.js') }}" defer></script>
 </head>
 
@@ -23,7 +27,7 @@
             <select id="theme-selector" class="theme-selector__select">
                 <option value="midnight">Midnight Gold</option>
                 <option value="obsidian">Obsidian Silver</option>
-                <option value="sage">Sage Estate</option>
+                <option value="sage">Navy</option>
             </select>
         </div>
         <nav class="top-navigation" aria-label="Main navigation">
@@ -55,7 +59,7 @@
                 </button>
 
                 <button class="profile-button" type="button" aria-label="Open profile menu">
-                    <span class="profile-button__avatar" aria-hidden="true">Chris</span>
+                    <span class="profile-button__avatar" aria-hidden="true">Eric</span>
                 </button>
             </div>
 
@@ -353,6 +357,62 @@
             </aside>
         </div>
     </main>
+
+    <dialog
+        class="article-dialog"
+        id="article-dialog"
+        aria-labelledby="article-detail-title"
+    >
+        <button
+            class="article-dialog__close"
+            id="article-dialog-close"
+            type="button"
+            aria-label="Close article"
+        >
+            <span aria-hidden="true">×</span>
+        </button>
+
+        <article class="article-detail">
+            <header class="article-detail__header">
+                <p
+                    class="article-detail__category"
+                    id="article-detail-category"
+                ></p>
+
+                <h2
+                    class="article-detail__title"
+                    id="article-detail-title"
+                ></h2>
+
+                <p
+                    class="article-detail__excerpt"
+                    id="article-detail-excerpt"
+                ></p>
+
+                <time
+                    class="article-detail__date"
+                    id="article-detail-date"
+                ></time>
+            </header>
+
+            <figure
+                class="article-detail__media"
+                id="article-detail-media"
+            >
+                <img
+                    class="article-detail__image"
+                    id="article-detail-image"
+                    alt=""
+                >
+            </figure>
+
+            <div
+                class="article-detail__content"
+                id="article-detail-content"
+            ></div>
+        </article>
+    </dialog>
+
     <nav class="mobile-navigation" aria-label="Mobile navigation">
         <a
             class="mobile-navigation__link"
@@ -373,7 +433,7 @@
             <span>Dashboard</span>
         </a>
     
-        <a class="mobile-navigation__link" href="/campaigns">
+        <a class="mobile-navigation__link" href="/campaigns/new">
             <svg
                 class="mobile-navigation__icon"
                 aria-hidden="true"
