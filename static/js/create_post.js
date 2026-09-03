@@ -60,6 +60,7 @@ const publishingStatus = document.querySelector("#publishing-status");
 
 const defaultPreviewImage = previewImage.src;
 let featuredImageDataUrl = null;
+let isPublishing = false;
 
 function parseTags(tagsValue) {
     return tagsValue
@@ -133,14 +134,6 @@ function populatePostForm(post) {
     renderPostPreview(post);
 }
 
-function createTemporaryPostId() {
-    if (crypto.randomUUID) {
-        return crypto.randomUUID();
-    }
-
-    return `post-${Date.now()}`;
-}
-
 function saveDraft() {
     const draft = getPostData("draft");
 
@@ -155,69 +148,61 @@ function saveDraft() {
     }
 }
 
-function publishPost() {
-    if (!postForm.reportValidity()) {
+async function publishPost() {
+    if (isPublishing || !postForm.reportValidity()) {
         return;
     }
 
-    const post = {
-        ...getPostData("published"),
-        id: createTemporaryPostId()
-    };
+    const { publishedDate, ...postData } = getPostData("published");
+    isPublishing = true;
+    publishPostButton.disabled = true;
+    showPublishingStatus("Publishing post...");
 
     try {
-        postStorage.savePublishedPost(post);
-        renderPostPreview(post);
-        showPublishingStatus("Post published in this browser.");
-        console.log("Locally published post:", post);
+        const createdPost = await sendPost(postData);
+
+        if (!createdPost?.id) {
+            throw new Error("The server did not return a post ID.");
+        }
+
+        showPublishingStatus("Post published. Opening article...");
+        window.setTimeout(() => {
+            window.location.assign(`/posts/${createdPost.id}`);
+        }, 250);
     } catch (error) {
-        showPublishingStatus("The post could not be published.");
+        const message = error instanceof TypeError
+            ? "Network error. Check your connection and try again."
+            : error.message;
+
+        showPublishingStatus(`The post could not be published: ${message}`);
         console.error("Unable to publish post:", error);
+        isPublishing = false;
+        publishPostButton.disabled = false;
     }
 }
 
 async function sendPost(postData) {
-    const payload = {
-        ...postData,
-        featuredImage: null
-    };
+    const response = await fetch("/api/posts", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(postData)
+    });
 
-    console.log("Outgoing post payload:", payload);
+    const contentType = response.headers.get("content-type") ?? "";
+    const responseData = contentType.includes("application/json")
+        ? await response.json()
+        : await response.text();
 
-    try {
-        const response = await fetch("/api/posts", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(payload)
-        });
-
-        const contentType =
-            response.headers.get("content-type") ?? "";
-
-        const responseData = contentType.includes("application/json")
-            ? await response.json()
-            : await response.text();
-
-        console.log("Returned response:", {
-            status: response.status,
-            ok: response.ok,
-            data: responseData
-        });
-
-        if (!response.ok) {
-            throw new Error(
-                responseData?.message ||
-                `Post request failed with status ${response.status}`
-            );
-        }
-
-        return responseData;
-    } catch (error) {
-        console.error("Unable to send post:", error);
-        return null;
+    if (!response.ok) {
+        throw new Error(
+            responseData?.message ||
+            `Post request failed with status ${response.status}`
+        );
     }
+
+    return responseData;
 }
 
 featuredImageInput.addEventListener("change", async (event) => {

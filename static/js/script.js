@@ -99,7 +99,7 @@ function formatPublishedDate(publishedDate) {
     }).format(date);
 }
 
-function mapStoredPostToFeedPost(post) {
+function mapApiPostToFeedPost(post) {
     return {
         id: post.id,
         category: categoryLabels[post.category] || post.category,
@@ -108,30 +108,15 @@ function mapStoredPostToFeedPost(post) {
         author: "Eric Cuss",
         publishedDate: post.publishedDate,
         displayDate: formatPublishedDate(post.publishedDate),
-        url: `#post-${post.id}`,
-        isLocalPost: true
+        url: `/posts/${post.id}`
     };
 }
 
-const localPublishedPosts = postStorage
-    .getPublishedPosts()
-    .filter((post) => post.status === "published")
-    .map(mapStoredPostToFeedPost);
-
-const posts = [...localPublishedPosts, ...demoPosts];
+const posts = [];
 const postList = document.querySelector("#post-list");
 const postTemplate = document.querySelector("#post-card-template");
 const loadMoreButton = document.querySelector("#load-more-posts");
 const postLoadStatus = document.querySelector("#post-load-status");
-const articleDialog = document.querySelector("#article-dialog");
-const articleDialogClose = document.querySelector("#article-dialog-close");
-const articleCategory = document.querySelector("#article-detail-category");
-const articleTitle = document.querySelector("#article-detail-title");
-const articleExcerpt = document.querySelector("#article-detail-excerpt");
-const articleDate = document.querySelector("#article-detail-date");
-const articleMedia = document.querySelector("#article-detail-media");
-const articleImage = document.querySelector("#article-detail-image");
-const articleContent = document.querySelector("#article-detail-content");
 
 const postsPerPage = 3;
 let visiblePostCount = 0;
@@ -148,10 +133,6 @@ function createPostCard(post) {
 
     link.href = post.url;
 
-    if (post.isLocalPost) {
-        link.dataset.postId = post.id;
-    }
-
     category.textContent = post.category;
     title.textContent = post.title;
     summary.textContent = post.summary;
@@ -160,38 +141,6 @@ function createPostCard(post) {
     date.textContent = post.displayDate;
 
     return cardFragment;
-}
-
-function renderArticleDetail(post) {
-    articleCategory.textContent =
-        categoryLabels[post.category] || post.category;
-    articleTitle.textContent = post.title;
-    articleExcerpt.textContent = post.excerpt;
-    articleDate.dateTime = post.publishedDate;
-    articleDate.textContent = formatPublishedDate(post.publishedDate);
-    articleContent.textContent = post.content;
-
-    if (post.featuredImage) {
-        articleImage.src = post.featuredImage;
-        articleImage.alt = `Featured image for ${post.title}`;
-        articleMedia.hidden = false;
-    } else {
-        articleImage.removeAttribute("src");
-        articleImage.alt = "";
-        articleMedia.hidden = true;
-    }
-}
-
-function loadPost(postId) {
-    const post = postStorage.findPublishedPost(postId);
-
-    if (!post) {
-        console.error(`Unable to find published post: ${postId}`);
-        return;
-    }
-
-    renderArticleDetail(post);
-    articleDialog.showModal();
 }
 
 function loadMorePosts() {
@@ -218,28 +167,26 @@ function loadMorePosts() {
 
 loadMoreButton.addEventListener("click", loadMorePosts);
 
-postList.addEventListener("click", (event) => {
-    const localPostLink = event.target.closest("[data-post-id]");
+async function loadPublishedPosts() {
+    try {
+        const response = await fetch("/api/posts");
 
-    if (!localPostLink) {
-        return;
+        if (!response.ok) {
+            throw new Error(`Posts request failed with status ${response.status}`);
+        }
+
+        const apiPosts = await response.json();
+        posts.push(...apiPosts.map(mapApiPostToFeedPost), ...demoPosts);
+    } catch (error) {
+        console.error("Unable to load published posts:", error);
+        posts.push(...demoPosts);
+        postLoadStatus.textContent = "Published posts could not be loaded.";
     }
 
-    event.preventDefault();
-    loadPost(localPostLink.dataset.postId);
-});
+    loadMorePosts();
+}
 
-articleDialogClose.addEventListener("click", () => {
-    articleDialog.close();
-});
-
-articleDialog.addEventListener("click", (event) => {
-    if (event.target === articleDialog) {
-        articleDialog.close();
-    }
-});
-
-loadMorePosts();
+loadPublishedPosts();
 
 //////color change
 const themeSelector = document.querySelector("#theme-selector");
