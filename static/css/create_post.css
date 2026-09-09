@@ -70,6 +70,17 @@
     line-height: 1.6;
 }
 
+.post-editor-layout[data-demo-mode="true"] .post-editor-card__description::before {
+    display: inline-block;
+    margin-right: 8px;
+    color: var(--color-gold-light);
+    content: "Demo mode";
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
 .post-editor-card__actions {
     display: flex;
     flex-shrink: 0;

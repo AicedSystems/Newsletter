@@ -28,6 +28,7 @@ themeSelector.addEventListener("change", (event) => {
 });
 // Post form data
 const postForm = document.querySelector("[data-post-form]");
+const isDemoMode = postForm.dataset.demoMode === "true";
 const saveDraftButton = document.querySelector("#save-draft-button");
 const previewButton = document.querySelector("#preview-button");
 const publishPostButton = document.querySelector("#publish-post-button");
@@ -57,6 +58,9 @@ let featuredImageDataUrl = null;
 let isPublishing = false;
 let contentBlocks = [];
 let draggedBlockIndex = null;
+
+const demoDraftStorageKey = "cmsDemoPostDraft";
+const demoPublishedStorageKey = "cmsDemoPublishedPost";
 
 const allowedImageTypes = new Set([
     "image/jpeg",
@@ -660,9 +664,17 @@ function saveDraft() {
     const draft = getPostData("draft");
 
     try {
-        postStorage.saveDraft(draft);
+        if (isDemoMode) {
+            localStorage.setItem(demoDraftStorageKey, JSON.stringify(draft));
+        } else {
+            postStorage.saveDraft(draft);
+        }
         renderPostPreview(draft);
-        showPublishingStatus("Draft saved in this browser.");
+        showPublishingStatus(
+            isDemoMode
+                ? "Demo draft saved in this browser only."
+                : "Draft saved in this browser."
+        );
         console.log("Saved draft:", draft);
     } catch (error) {
         showPublishingStatus("The draft could not be saved.");
@@ -672,6 +684,18 @@ function saveDraft() {
 
 async function publishPost() {
     if (isPublishing || !postForm.reportValidity()) {
+        return;
+    }
+
+    if (isDemoMode) {
+        const demoPost = getPostData("published");
+        try {
+            localStorage.setItem(demoPublishedStorageKey, JSON.stringify(demoPost));
+            renderPostPreview(demoPost);
+            showPublishingStatus("Demo published in this browser only. No public post was created.");
+        } catch (error) {
+            showPublishingStatus("This demo post is too large to save in the browser, but you can keep previewing it.");
+        }
         return;
     }
 
@@ -823,11 +847,23 @@ postForm.querySelector("#post-category").addEventListener("change", () => {
 saveDraftButton.addEventListener("click", saveDraft);
 publishPostButton.addEventListener("click", publishPost);
 
-const savedDraft = postStorage.getDraft();
+const savedDraft = isDemoMode
+    ? (() => {
+        try {
+            return JSON.parse(localStorage.getItem(demoDraftStorageKey) || "null");
+        } catch {
+            return null;
+        }
+    })()
+    : postStorage.getDraft();
 
 if (savedDraft) {
     populatePostForm(savedDraft);
-    showPublishingStatus("Saved draft restored from this browser.");
+    showPublishingStatus(
+        isDemoMode
+            ? "Saved demo draft restored from this browser."
+            : "Saved draft restored from this browser."
+    );
 }
 
 renderPostPreview(getPostData());

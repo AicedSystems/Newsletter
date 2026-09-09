@@ -164,7 +164,12 @@ def dashboard():
 @app.get("/posts/new")
 @require_editor_auth
 def new_post():
-    return render_template("create_post.html")
+    return render_template("create_post.html", demo_mode=False)
+
+
+@app.get("/demo")
+def demo_editor():
+    return render_template("create_post.html", demo_mode=True)
 
 
 @app.get("/posts/<int:post_id>")

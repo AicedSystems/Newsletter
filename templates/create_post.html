@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#050b14">
 
-    <title>Create Post | Rise Dashboard</title>
+    <title>{% if demo_mode %}Try the Editor{% else %}Create Post{% endif %} | Rise Dashboard</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -92,6 +92,7 @@
         <form class="post-editor-layout"
         id="post-form"
         data-post-form
+        data-demo-mode="{{ 'true' if demo_mode else 'false' }}"
         >
             <section
                 class="post-editor-card"
@@ -111,12 +112,16 @@
                             class="post-editor-card__title"
                             id="create-post-title"
                         >
-                            Create new post
+                            {% if demo_mode %}Try the editor{% else %}Create new post{% endif %}
                         </h1>
 
                         <p class="post-editor-card__description">
-                            Share insights, market updates, and stories
-                            with your audience.
+                            {% if demo_mode %}
+                                Explore the editor freely. Demo posts stay only in this browser.
+                            {% else %}
+                                Share insights, market updates, and stories
+                                with your audience.
+                            {% endif %}
                         </p>
                     </div>
 
@@ -232,7 +237,7 @@
                             data-post-status="published"
                             type="button"
                         >
-                            Publish post
+                            {% if demo_mode %}Publish demo{% else %}Publish post{% endif %}
                         </button>
                     </div>
 
