@@ -25,13 +25,112 @@ function formatPublishedDate(publishedDate) {
     }).format(new Date(publishedDate));
 }
 
+function getYouTubeEmbedUrl(value) {
+    try {
+        const url = new URL(value);
+        const host = url.hostname.replace(/^www\./, "");
+        let videoId;
+
+        if (host === "youtu.be") {
+            videoId = url.pathname.slice(1);
+        } else if (host === "youtube.com" || host === "m.youtube.com") {
+            if (url.pathname === "/watch") {
+                videoId = url.searchParams.get("v");
+            } else {
+                const [prefix, id] = url.pathname.split("/").filter(Boolean);
+                if (["embed", "shorts", "live"].includes(prefix)) {
+                    videoId = id;
+                }
+            }
+        }
+
+        return /^[A-Za-z0-9_-]{11}$/.test(videoId || "")
+            ? `https://www.youtube-nocookie.com/embed/${videoId}`
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+function isSafeWebUrl(value) {
+    try {
+        const url = new URL(value);
+        return ["http:", "https:"].includes(url.protocol);
+    } catch {
+        return false;
+    }
+}
+
+function createArticleBlock(block) {
+    if (block.type === "heading") {
+        const heading = document.createElement("h2");
+        heading.className = "article-block__heading";
+        heading.textContent = block.text;
+        return heading;
+    }
+
+    if (block.type === "paragraph") {
+        const paragraph = document.createElement("p");
+        paragraph.className = "article-block__paragraph";
+        paragraph.textContent = block.text;
+        return paragraph;
+    }
+
+    if (block.type === "quote") {
+        const quote = document.createElement("blockquote");
+        quote.className = "article-block__quote";
+        quote.textContent = block.text;
+        return quote;
+    }
+
+    if (block.type === "image" && isSafeWebUrl(block.url)) {
+        const image = document.createElement("img");
+        image.className = "article-block__image";
+        image.src = block.url;
+        image.alt = "Article image";
+        return image;
+    }
+
+    if (block.type === "youtube") {
+        const embedUrl = getYouTubeEmbedUrl(block.url);
+        if (!embedUrl) {
+            return null;
+        }
+        const video = document.createElement("iframe");
+        video.className = "article-block__youtube";
+        video.src = embedUrl;
+        video.title = "YouTube video";
+        video.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+        video.allowFullscreen = true;
+        return video;
+    }
+
+    if (block.type === "cta" && isSafeWebUrl(block.url)) {
+        const link = document.createElement("a");
+        link.className = "article-block__cta";
+        link.href = block.url;
+        link.textContent = block.text;
+        return link;
+    }
+
+    return null;
+}
+
+function renderContentBlocks(post) {
+    const blocks = Array.isArray(post.contentBlocks) && post.contentBlocks.length
+        ? post.contentBlocks
+        : [{ type: "paragraph", text: post.content }];
+
+    articleContent.replaceChildren(...blocks.map(createArticleBlock).filter(Boolean));
+}
+
 function renderArticle(post) {
     articleCategory.textContent = categoryLabels[post.category] || post.category;
     articleTitle.textContent = post.title;
     articleExcerpt.textContent = post.excerpt;
     articleDate.dateTime = post.publishedDate;
     articleDate.textContent = formatPublishedDate(post.publishedDate);
-    articleContent.textContent = post.content;
+    renderContentBlocks(post);
     document.title = `${post.title} | Rise Dashboard`;
 
     articleTags.replaceChildren(...post.tags.map((tag) => {

@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import DateTime, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from extensions import db
@@ -19,3 +20,4 @@ class Post(db.Model):
     featured_image: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    content_blocks: Mapped[Optional[list[dict]]] = mapped_column(JSONB, nullable=True)

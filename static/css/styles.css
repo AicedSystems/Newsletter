@@ -1352,6 +1352,55 @@ button {
     font-size: 13px;
 }
 
+.article-block__heading,
+.article-block__paragraph,
+.article-block__quote,
+.article-block__image,
+.article-block__youtube,
+.article-block__cta {
+    display: block;
+    max-width: 680px;
+    margin-top: 28px;
+}
+
+.article-block__heading {
+    font-size: clamp(24px, 3vw, 32px);
+}
+
+.article-block__paragraph {
+    line-height: 1.85;
+    white-space: pre-wrap;
+}
+
+.article-block__quote {
+    padding-left: 18px;
+    color: var(--color-text-muted);
+    border-left: 3px solid var(--color-gold);
+    font-size: 18px;
+    line-height: 1.7;
+}
+
+.article-block__image {
+    width: 100%;
+    border-radius: var(--radius-medium);
+}
+
+.article-block__youtube {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 0;
+}
+
+.article-block__cta {
+    width: fit-content;
+    padding: 11px 16px;
+    color: var(--color-on-accent);
+    background: var(--accent-gradient);
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
 /* //////MObile Layout */
 .mobile-navigation {
     display: none;

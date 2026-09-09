@@ -120,27 +120,17 @@
                         </p>
                     </div>
 
-                    <div class="post-editor-card__actions">
-                        <button
-                            class="editor-button editor-button--secondary"
-                            type="button"
-                            id="save-draft-button"
-                            data-post-status="draft"
-                        >
-                            Save draft
-                        </button>
-
-                        <button
-                            class="editor-button editor-button--accent"
-                            type="button"
-                            id="preview-button"
-                        >
-                            Preview
-                        </button>
-                    </div>
                 </header>
 
                 <div class="post-editor-card__body">
+                    <div class="block-builder__heading">
+                        <div>
+                            <h2 id="article-title-heading">Article title</h2>
+                            <p>Use a clear title to help readers and search engines understand your article.</p>
+                        </div>
+
+                    </div>
+
                     <div class="editor-field">
                         <div class="editor-field__heading">
                             <label class="editor-field__label" for="post-title">
@@ -169,65 +159,83 @@
                         >
                     </div>
 
-                    <div class="editor-field">
+                    <div class="editor-field editor-field--summary">
                         <div class="editor-field__heading">
-                            <label class="editor-field__label" for="post-content">
-                                Content
+                            <label class="editor-field__label" for="post-excerpt">
+                                SEO summary
                             </label>
 
                             <span
                                 class="editor-field__counter"
-                                id="content-word-count"
+                                id="excerpt-character-count"
                                 aria-live="polite"
                             >
-                                0 words
+                                0/160
                             </span>
                         </div>
 
-                        <div class="content-editor">
-                            <div class="content-editor__toolbar" aria-hidden="true">
-                                <span>Paragraph</span>
+                        <p class="editor-field__description">
+                            A short description used in search results and article previews.
+                        </p>
 
-                                <span class="content-editor__toolbar-divider"></span>
+                        <textarea
+                            class="editor-field__textarea"
+                            id="post-excerpt"
+                            name="excerpt"
+                            data-post-field="excerpt"
+                            rows="4"
+                            maxlength="160"
+                            placeholder="Summarize what readers will learn from this article..."
+                            aria-describedby="excerpt-character-count"
+                            required
+                        ></textarea>
+                    </div>
 
-                                <strong>B</strong>
-                                <em>I</em>
-                                <span class="content-editor__underline">U</span>
-                            </div>
-
-                            <textarea
-                                class="content-editor__textarea"
-                                id="post-content"
-                                name="content"
-                                rows="18"
-                                data-post-field="content"
-                                placeholder="Write your post content..."
-                                aria-describedby="content-word-count"
-                                required
-                            ></textarea>
-
-                            <div class="content-editor__footer">
-                                <span>Draft editor</span>
-
-                                <span class="content-editor__save-status">
-                                    Not saved
-                                </span>
-                            </div>
+                    <section class="block-builder" aria-label="Article content blocks">
+                        <div class="block-builder__list" id="content-block-list"></div>
+                        <div class="block-builder__footer">
+                            <details class="block-builder__add-menu block-builder__add-menu--bottom">
+                                <summary>Add content</summary>
+                                <div class="block-builder__actions" aria-label="Add article block">
+                                    <button type="button" data-add-block="paragraph">Text (Paragraph)</button>
+                                    <button type="button" data-add-block="heading">Heading</button>
+                                    <button type="button" data-add-block="image">Image</button>
+                                    <button type="button" data-add-block="youtube">YouTube video</button>
+                                    <button type="button" data-add-block="quote">Quote</button>
+                                    <button type="button" data-add-block="cta">Call to action</button>
+                                </div>
+                            </details>
                         </div>
-                    </div>
-                    <div class="editor-field">
-                        <label class="editor-field__label" for="post-featured-image">
-                            Featured image
-                        </label>
+                    </section>
 
-                        <input
-                            id="post-featured-image"
-                            name="featured_image"
-                            data-post-field="featuredImage"
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
+                    <div class="post-editor-card__actions post-editor-card__actions--footer">
+                        <button
+                            class="editor-button editor-button--secondary"
+                            type="button"
+                            id="save-draft-button"
+                            data-post-status="draft"
                         >
+                            Save draft
+                        </button>
+
+                        <button
+                            class="editor-button editor-button--accent"
+                            type="button"
+                            id="preview-button"
+                        >
+                            Preview
+                        </button>
+
+                        <button
+                            class="editor-button editor-button--primary"
+                            id="publish-post-button"
+                            data-post-status="published"
+                            type="button"
+                        >
+                            Publish post
+                        </button>
                     </div>
+
                 </div>
             </section>
 
@@ -287,36 +295,32 @@
                             </p>
                         </div>
 
-                        <div class="publishing-field">
-                            <div class="publishing-field__heading">
-                                <label
-                                    class="publishing-field__label"
-                                    for="post-excerpt"
-                                >
-                                    Excerpt
-                                </label>
+                    </div>
+                </section>
 
-                                <span
-                                    class="publishing-field__counter"
-                                    id="excerpt-character-count"
-                                    aria-live="polite"
-                                >
-                                    0/160
-                                </span>
-                            </div>
+                <section class="publishing-card" aria-labelledby="thumbnail-title">
+                    <h2 class="publishing-card__title" id="thumbnail-title">
+                        Post thumbnail
+                    </h2>
 
-                            <textarea
-                                class="publishing-field__control publishing-field__control--textarea"
-                                id="post-excerpt"
-                                name="excerpt"
-                                data-post-field="excerpt"
-                                rows="5"
-                                maxlength="160"
-                                placeholder="Write a short summary for the post card..."
-                                aria-describedby="excerpt-character-count"
-                                required
-                            ></textarea>
-                        </div>
+                    <label class="image-drop-zone" id="featured-image-drop-zone" for="post-featured-image">
+                        <input
+                            class="featured-image-input"
+                            id="post-featured-image"
+                            name="featured_image"
+                            data-post-field="featuredImage"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                        >
+                        <span class="image-drop-zone__title">Drop an image here</span>
+                        <span class="image-drop-zone__help">or click to choose a JPEG, PNG, or WebP file</span>
+                    </label>
+                    <p class="publishing-field__help">Images are shown in the preview and saved with the post.</p>
+                    <div class="thumbnail-preview" id="thumbnail-preview" hidden>
+                        <button class="thumbnail-preview__image-button" id="view-thumbnail-button" type="button" aria-label="View post thumbnail at full size">
+                            <img id="thumbnail-preview-image" alt="Selected post thumbnail">
+                        </button>
+                        <button class="thumbnail-preview__remove-button" id="remove-thumbnail-button" type="button" aria-label="Remove post thumbnail" title="Remove thumbnail">×</button>
                     </div>
                 </section>
 
@@ -339,6 +343,9 @@
                                 src="{{ url_for('static', filename='images/collov-home-design-qWXGmMRe4so-unsplash.webp') }}"
                                 alt=""
                             >
+                            <p class="editor-preview__no-image" id="preview-no-image" hidden>
+                                No thumbnail selected
+                            </p>
                         </div>
 
                         <div class="editor-preview__content">
@@ -354,6 +361,8 @@
                                 add the description and info of post
                             </p>
 
+                            <div class="editor-preview__blocks" id="preview-content"></div>
+
                             <div class="editor-preview__meta">
                                 <span class="editor-preview__avatar" aria-hidden="true">
                                     EC
@@ -367,45 +376,6 @@
                         </div>
                     </article>
 
-                    <div class="publishing-action">
-                        <label
-                            class="visually-hidden"
-                            for="publishing-action-selector"
-                        >
-                            Choose publishing action
-                        </label>
-
-                        <select
-                            class="publishing-action__select"
-                            id="publishing-action-selector"
-                            name="publishing_action"
-                        >
-                            <option value="publish">Publish post</option>
-                            <option value="campaign">Send as campaign</option>
-                            <option value="both">Publish and send</option>
-                        </select>
-
-                        <button
-                            class="publish-button"
-                            id="publish-post-button"
-                            data-post-status="published"
-                            type="button"
-                        >
-                            <svg
-                                class="publish-button__icon"
-                                aria-hidden="true"
-                                viewBox="0 0 24 24"
-                            >
-                                <path d="m22 2-7 20-4-9-9-4Z"></path>
-                                <path d="M22 2 11 13"></path>
-                            </svg>
-
-                            <span id="publishing-action-label">
-                                Publish post
-                            </span>
-                        </button>
-                    </div>
-
                     <p
                         class="publishing-status"
                         id="publishing-status"
@@ -415,5 +385,22 @@
             </aside>
         </form>
     </main>
+
+    <dialog class="editor-dialog" id="thumbnail-viewer-dialog" aria-labelledby="thumbnail-viewer-title">
+        <div class="editor-dialog__header">
+            <h2 id="thumbnail-viewer-title">Post thumbnail</h2>
+            <button class="editor-dialog__close-button" id="close-thumbnail-viewer-button" type="button" aria-label="Close image viewer">×</button>
+        </div>
+        <img class="editor-dialog__image" id="thumbnail-viewer-image" alt="Post thumbnail at full size">
+    </dialog>
+
+    <dialog class="editor-dialog editor-dialog--confirmation" id="thumbnail-remove-dialog" aria-labelledby="thumbnail-remove-title">
+        <h2 id="thumbnail-remove-title">Remove thumbnail?</h2>
+        <p>Are you sure you would like to remove this image?</p>
+        <div class="editor-dialog__actions">
+            <button class="editor-button editor-button--secondary" id="cancel-thumbnail-remove-button" type="button">Cancel</button>
+            <button class="editor-button editor-button--danger" id="confirm-thumbnail-remove-button" type="button">Remove image</button>
+        </div>
+    </dialog>
 </body>
 </html>
