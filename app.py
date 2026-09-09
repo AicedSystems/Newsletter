@@ -2,6 +2,8 @@ import os
 import base64
 import binascii
 import re
+from functools import wraps
+from secrets import compare_digest
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -13,9 +15,14 @@ from models import Post
 
 app = Flask(__name__)
 database_url = os.environ.get("DATABASE_URL")
+editor_username = os.environ.get("EDITOR_USERNAME")
+editor_password = os.environ.get("EDITOR_PASSWORD")
 
 if not database_url:
     raise RuntimeError("DATABASE_URL must be set to a PostgreSQL connection URL.")
+
+if not editor_username or not editor_password:
+    raise RuntimeError("EDITOR_USERNAME and EDITOR_PASSWORD must be set.")
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 
@@ -27,6 +34,30 @@ EMBEDDED_IMAGE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 MAXIMUM_EMBEDDED_IMAGE_BYTES = 5 * 1024 * 1024
+
+
+def require_editor_auth(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        credentials = request.authorization
+        is_authenticated = (
+            credentials is not None
+            and credentials.username is not None
+            and credentials.password is not None
+            and compare_digest(credentials.username, editor_username)
+            and compare_digest(credentials.password, editor_password)
+        )
+
+        if is_authenticated:
+            return view(*args, **kwargs)
+
+        return (
+            jsonify({"message": "Editor authentication is required."}),
+            401,
+            {"WWW-Authenticate": 'Basic realm="Post editor"'},
+        )
+
+    return wrapped_view
 
 
 def is_web_url(value):
@@ -131,6 +162,7 @@ def dashboard():
 
 
 @app.get("/posts/new")
+@require_editor_auth
 def new_post():
     return render_template("create_post.html")
 
@@ -146,6 +178,7 @@ def new_campaign():
 
 
 @app.post("/api/posts")
+@require_editor_auth
 def create_post():
     data = request.get_json(silent=True)
 
