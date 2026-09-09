@@ -9,9 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/styles.css') }}" >
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <script src="{{ url_for('static', filename='js/script.js') }}" defer></script>
 </head>
 
@@ -25,7 +23,7 @@
             <select id="theme-selector" class="theme-selector__select">
                 <option value="midnight">Midnight Gold</option>
                 <option value="obsidian">Obsidian Silver</option>
-                <option value="sage">Sage Estate</option>
+                <option value="sage">Navy</option>
             </select>
         </div>
         <nav class="top-navigation" aria-label="Main navigation">
@@ -57,7 +55,7 @@
                 </button>
 
                 <button class="profile-button" type="button" aria-label="Open profile menu">
-                    <span class="profile-button__avatar" aria-hidden="true">Chris</span>
+                    <span class="profile-button__avatar" aria-hidden="true">Eric</span>
                 </button>
             </div>
 
@@ -116,7 +114,7 @@
                         </li>
 
                         <li class="shortcut-card__item">
-                            <a class="shortcut-card__link" href="/campaigns">
+                            <a class="shortcut-card__link" href="/campaigns/new">
                                 <svg class="shortcut-card__icon" aria-hidden="true" viewBox="0 0 24 24">
                                     <path d="m3 11 18-7v16l-18-7v-2Z"></path>
                                     <path d="M7 14v5a2 2 0 0 0 2 2h2v-6"></path>
@@ -148,7 +146,7 @@
                 <article class="featured-post">
                     <a class="featured-post__link" href="/posts/2026-luxury-market-outlook">
                         <div class="featured-post__media">
-                            <img class="featured-post__image" src="{{ url_for('static', filename='images/featured-home.jpg') }}"
+                            <img class="featured-post__image" src="{{ url_for('static', filename='images/collov-home-design-qWXGmMRe4so-unsplash.webp') }}"
                                 alt="Modern luxury home illuminated at dusk">
                         </div>
 
@@ -355,6 +353,7 @@
             </aside>
         </div>
     </main>
+
     <nav class="mobile-navigation" aria-label="Mobile navigation">
         <a
             class="mobile-navigation__link"
@@ -375,7 +374,7 @@
             <span>Dashboard</span>
         </a>
     
-        <a class="mobile-navigation__link" href="/campaigns">
+        <a class="mobile-navigation__link" href="/campaigns/new">
             <svg
                 class="mobile-navigation__icon"
                 aria-hidden="true"

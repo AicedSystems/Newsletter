@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#050b14">
+    <title>Article | Rise Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="{{ url_for('static', filename='js/article.js') }}" defer></script>
+</head>
+<body>
+    <header class="app-header article-page__header">
+        <a class="article-page__back-link" href="{{ url_for('dashboard') }}">← Dashboard</a>
+    </header>
+
+    <main class="article-page" data-post-id="{{ post_id }}" id="main-content">
+        <p class="article-page__status" id="article-status" aria-live="polite">Loading article…</p>
+
+        <article class="article-detail" id="article-detail" hidden>
+            <header class="article-detail__header">
+                <p class="article-detail__category" id="article-category"></p>
+                <h1 class="article-detail__title" id="article-title"></h1>
+                <p class="article-detail__excerpt" id="article-excerpt"></p>
+                <time class="article-detail__date" id="article-date"></time>
+            </header>
+
+            <figure class="article-detail__media" id="article-media" hidden>
+                <img class="article-detail__image" id="article-image" alt="">
+            </figure>
+
+            <div class="article-detail__content" id="article-content"></div>
+            <ul class="article-page__tags" id="article-tags" aria-label="Article tags"></ul>
+        </article>
+    </main>
+</body>
+</html>

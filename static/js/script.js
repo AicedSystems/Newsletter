@@ -15,7 +15,7 @@ searchForm.addEventListener("submit", (event) => {
     console.info(`Searching for: ${searchTerm}`);
 });
 ////post data
-const posts = [
+const demoPosts = [
     {
         category: "Market Updates",
         title: "What Luxury Buyers Are Looking for in 2026",
@@ -77,6 +77,42 @@ const posts = [
         url: "/posts/building-a-lasting-brokerage"
     }
 ];
+
+const categoryLabels = {
+    "market-updates": "Market Updates",
+    recruiting: "Recruiting",
+    "success-stories": "Success Stories",
+    training: "Training"
+};
+
+function formatPublishedDate(publishedDate) {
+    const date = new Date(publishedDate);
+
+    if (Number.isNaN(date.getTime())) {
+        return "Date unavailable";
+    }
+
+    return new Intl.DateTimeFormat("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric"
+    }).format(date);
+}
+
+function mapApiPostToFeedPost(post) {
+    return {
+        id: post.id,
+        category: categoryLabels[post.category] || post.category,
+        title: post.title,
+        summary: post.excerpt,
+        author: "Eric Cuss",
+        publishedDate: post.publishedDate,
+        displayDate: formatPublishedDate(post.publishedDate),
+        url: `/posts/${post.id}`
+    };
+}
+
+const posts = [];
 const postList = document.querySelector("#post-list");
 const postTemplate = document.querySelector("#post-card-template");
 const loadMoreButton = document.querySelector("#load-more-posts");
@@ -96,6 +132,7 @@ function createPostCard(post) {
     const date = cardFragment.querySelector(".post-card__date");
 
     link.href = post.url;
+
     category.textContent = post.category;
     title.textContent = post.title;
     summary.textContent = post.summary;
@@ -130,7 +167,26 @@ function loadMorePosts() {
 
 loadMoreButton.addEventListener("click", loadMorePosts);
 
-loadMorePosts();
+async function loadPublishedPosts() {
+    try {
+        const response = await fetch("/api/posts");
+
+        if (!response.ok) {
+            throw new Error(`Posts request failed with status ${response.status}`);
+        }
+
+        const apiPosts = await response.json();
+        posts.push(...apiPosts.map(mapApiPostToFeedPost), ...demoPosts);
+    } catch (error) {
+        console.error("Unable to load published posts:", error);
+        posts.push(...demoPosts);
+        postLoadStatus.textContent = "Published posts could not be loaded.";
+    }
+
+    loadMorePosts();
+}
+
+loadPublishedPosts();
 
 //////color change
 const themeSelector = document.querySelector("#theme-selector");
@@ -155,10 +211,3 @@ if (savedTheme && supportedThemes.has(savedTheme)) {
 themeSelector.addEventListener("change", (event) => {
     applyTheme(event.target.value);
 });
-
-
-templates
-static
-static/css
-static/js
-static/images
