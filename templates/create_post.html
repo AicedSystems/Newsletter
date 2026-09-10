@@ -26,6 +26,11 @@
     >
 
     <script
+        src="{{ url_for('static', filename='js/article_blocks.js') }}"
+        defer
+    ></script>
+
+    <script
         src="{{ url_for('static', filename='js/post_storage.js') }}"
         defer
     ></script>
@@ -208,6 +213,7 @@
                                     <button type="button" data-add-block="youtube">YouTube video</button>
                                     <button type="button" data-add-block="quote">Quote</button>
                                     <button type="button" data-add-block="cta">Call to action</button>
+                                    <button class="block-builder__add-article-option" type="button" title="Full article entry is coming soon." disabled>Add article</button>
                                 </div>
                             </details>
                         </div>
@@ -333,12 +339,15 @@
                     class="publishing-card"
                     aria-labelledby="post-preview-title"
                 >
-                    <h2
-                        class="publishing-card__title"
-                        id="post-preview-title"
-                    >
-                        Post preview
-                    </h2>
+                    <div class="publishing-card__title-row">
+                        <h2
+                            class="publishing-card__title"
+                            id="post-preview-title"
+                        >
+                            Post preview
+                        </h2>
+                        <button class="publishing-card__preview-button" id="open-full-preview-button" type="button">View full preview</button>
+                    </div>
 
                     <article class="editor-preview" id="post-preview">
                         <div class="editor-preview__media">
@@ -406,6 +415,14 @@
             <button class="editor-button editor-button--secondary" id="cancel-thumbnail-remove-button" type="button">Cancel</button>
             <button class="editor-button editor-button--danger" id="confirm-thumbnail-remove-button" type="button">Remove image</button>
         </div>
+    </dialog>
+
+    <dialog class="editor-dialog editor-dialog--post-preview" id="full-preview-dialog" aria-labelledby="full-preview-title">
+        <div class="editor-dialog__header">
+            <h2 id="full-preview-title">Article preview</h2>
+            <button class="editor-dialog__close-button" id="close-full-preview-button" type="button" aria-label="Close article preview">×</button>
+        </div>
+        <div class="editor-dialog__post-preview" id="full-preview-mockup"></div>
     </dialog>
 </body>
 </html>

@@ -41,6 +41,8 @@ const previewExcerpt = document.querySelector("#preview-excerpt");
 const previewContent = document.querySelector("#preview-content");
 const publishingStatus = document.querySelector("#publishing-status");
 const contentBlockList = document.querySelector("#content-block-list");
+const blockBuilderFooter = document.querySelector(".block-builder__footer");
+const addBlockMenu = document.querySelector(".block-builder__add-menu--bottom");
 const addBlockButtons = document.querySelectorAll("[data-add-block]");
 const featuredImageDropZone = document.querySelector("#featured-image-drop-zone");
 const thumbnailPreview = document.querySelector("#thumbnail-preview");
@@ -53,6 +55,10 @@ const closeThumbnailViewerButton = document.querySelector("#close-thumbnail-view
 const thumbnailRemoveDialog = document.querySelector("#thumbnail-remove-dialog");
 const cancelThumbnailRemoveButton = document.querySelector("#cancel-thumbnail-remove-button");
 const confirmThumbnailRemoveButton = document.querySelector("#confirm-thumbnail-remove-button");
+const openFullPreviewButton = document.querySelector("#open-full-preview-button");
+const fullPreviewDialog = document.querySelector("#full-preview-dialog");
+const closeFullPreviewButton = document.querySelector("#close-full-preview-button");
+const fullPreviewMockup = document.querySelector("#full-preview-mockup");
 
 let featuredImageDataUrl = null;
 let isPublishing = false;
@@ -116,6 +122,84 @@ function getBlockPreview(block) {
 
     return block.text || block.url || `Add ${blockPresentation[block.type].label.toLowerCase()} content`;
 }
+
+function changeBlockType(block, nextType) {
+    if (block.type === nextType) {
+        return;
+    }
+
+    const text = block.text || "";
+    const url = block.url || "";
+
+    if (["heading", "paragraph", "quote"].includes(nextType)) {
+        Object.assign(block, { type: nextType, text });
+        delete block.url;
+    } else if (["image", "youtube"].includes(nextType)) {
+        Object.assign(block, { type: nextType, url });
+        delete block.text;
+    } else {
+        Object.assign(block, { type: "cta", text, url });
+    }
+
+    renderContentBlocks();
+}
+
+function createBlockTypePicker(block) {
+    const picker = document.createElement("div");
+    picker.className = "block-builder__type-picker";
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = `block-builder__icon block-builder__icon--${block.type}`;
+    toggle.textContent = blockPresentation[block.type].icon;
+    toggle.setAttribute("aria-label", `Change ${blockPresentation[block.type].label} element`);
+    toggle.setAttribute("title", "Change element");
+    toggle.setAttribute("aria-expanded", "false");
+
+    const options = document.createElement("div");
+    options.className = "block-builder__type-picker-options";
+    options.hidden = true;
+
+    Object.entries(blockPresentation).forEach(([type, presentation]) => {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.textContent = presentation.label;
+        option.disabled = type === block.type;
+        option.addEventListener("click", () => {
+            changeBlockType(block, type);
+        });
+        options.append(option);
+    });
+
+    toggle.addEventListener("click", () => {
+        const isOpen = !options.hidden;
+        closeOpenTypePickers(picker);
+        options.hidden = isOpen;
+        toggle.setAttribute("aria-expanded", String(!isOpen));
+    });
+
+    picker.append(toggle, options);
+    return picker;
+}
+
+function closeOpenTypePickers(exceptPicker = null) {
+    document.querySelectorAll(".block-builder__type-picker-options").forEach((options) => {
+        const picker = options.closest(".block-builder__type-picker");
+
+        if (picker !== exceptPicker) {
+            options.hidden = true;
+            picker.querySelector(".block-builder__icon").setAttribute("aria-expanded", "false");
+        }
+    });
+}
+
+document.addEventListener("click", (event) => {
+    const picker = event.target.closest(".block-builder__type-picker");
+
+    if (!picker && !event.target.closest(".block-builder__settings")) {
+        closeOpenTypePickers();
+    }
+});
 
 function moveBlock(fromIndex, toIndex) {
     if (
@@ -319,7 +403,7 @@ function chooseImageFileForBlock(block) {
     input.click();
 }
 
-function createBlockSettingsMenu(block, index, editor) {
+function createBlockSettingsMenu(block, index, editor, typePicker) {
     const menu = document.createElement("details");
     menu.className = "block-builder__settings";
 
@@ -345,6 +429,13 @@ function createBlockSettingsMenu(block, index, editor) {
         addAction("Change image", () => chooseImageFileForBlock(block));
     }
 
+    addAction("Change element", () => {
+        const toggle = typePicker.querySelector(".block-builder__icon");
+        const options = typePicker.querySelector(".block-builder__type-picker-options");
+        options.hidden = false;
+        toggle.setAttribute("aria-expanded", "true");
+        toggle.focus();
+    });
     addAction("Edit", () => {
         editor.open = true;
         editor.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -358,7 +449,43 @@ function createBlockSettingsMenu(block, index, editor) {
     return menu;
 }
 
+function createEmptyBlockState() {
+    const emptyState = document.createElement("section");
+    emptyState.className = "block-builder__empty-state";
+
+    const icon = document.createElement("span");
+    icon.className = "block-builder__empty-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "▤";
+
+    const title = document.createElement("h3");
+    title.textContent = "Add your first content block";
+
+    const description = document.createElement("p");
+    description.textContent = "Start building your article with text, images, videos, and more.";
+
+    const addArticleButton = document.createElement("button");
+    addArticleButton.className = "block-builder__add-article-main";
+    addArticleButton.type = "button";
+    addArticleButton.textContent = "Add article";
+    addArticleButton.title = "Full article entry is coming soon.";
+    addArticleButton.disabled = true;
+
+    emptyState.append(icon, title, description, addArticleButton, addBlockMenu);
+    return emptyState;
+}
+
 function renderContentBlocks() {
+    const isEmpty = contentBlocks.length === 0;
+    postForm.classList.toggle("post-editor-layout--starter", isEmpty);
+
+    if (isEmpty) {
+        contentBlockList.replaceChildren(createEmptyBlockState());
+        renderPostPreview(getPostData());
+        return;
+    }
+
+    blockBuilderFooter.append(addBlockMenu);
     contentBlockList.replaceChildren(...contentBlocks.flatMap((block, index) => {
         const blockElement = document.createElement("section");
         blockElement.className = `block-builder__block block-builder__block--${block.type}`;
@@ -388,9 +515,7 @@ function renderContentBlocks() {
                 element.classList.remove("is-dragging-over");
             });
         });
-        const icon = document.createElement("span");
-        icon.className = `block-builder__icon block-builder__icon--${block.type}`;
-        icon.textContent = blockPresentation[block.type].icon;
+        const typePicker = createBlockTypePicker(block);
         const details = document.createElement("div");
         const title = document.createElement("strong");
         title.textContent = blockPresentation[block.type].label;
@@ -398,7 +523,7 @@ function renderContentBlocks() {
         preview.className = "block-builder__preview";
         preview.textContent = getBlockPreview(block);
         details.append(title, preview);
-        identity.append(dragHandle, icon, details);
+        identity.append(dragHandle, typePicker, details);
         header.append(identity);
 
         const controls = document.createElement("div");
@@ -473,7 +598,7 @@ function renderContentBlocks() {
         }
 
         blockElement.append(editor);
-        controls.append(createBlockSettingsMenu(block, index, editor));
+        controls.append(createBlockSettingsMenu(block, index, editor, typePicker));
 
         return index === contentBlocks.length - 1
             ? [blockElement]
@@ -640,6 +765,18 @@ function renderContentPreview(blocks) {
         element.textContent = block.text || `${blockPresentation[block.type].label} block`;
         return element;
     }));
+}
+
+function renderFullPostPreview() {
+    renderPostPreview(getPostData("draft"));
+
+    const previewClone = document.querySelector("#post-preview").cloneNode(true);
+    previewClone.removeAttribute("id");
+    previewClone.classList.add("editor-preview--full");
+    previewClone.querySelectorAll("[id]").forEach((element) => {
+        element.removeAttribute("id");
+    });
+    fullPreviewMockup.replaceChildren(previewClone);
 }
 
 function showPublishingStatus(message) {
@@ -830,6 +967,21 @@ previewButton.addEventListener("click", () => {
     });
 });
 
+openFullPreviewButton.addEventListener("click", () => {
+    renderFullPostPreview();
+    fullPreviewDialog.showModal();
+});
+
+closeFullPreviewButton.addEventListener("click", () => {
+    fullPreviewDialog.close();
+});
+
+fullPreviewDialog.addEventListener("click", (event) => {
+    if (event.target === fullPreviewDialog) {
+        fullPreviewDialog.close();
+    }
+});
+
 [
     "#post-title",
     "#post-excerpt",
@@ -847,23 +999,51 @@ postForm.querySelector("#post-category").addEventListener("change", () => {
 saveDraftButton.addEventListener("click", saveDraft);
 publishPostButton.addEventListener("click", publishPost);
 
-const savedDraft = isDemoMode
-    ? (() => {
-        try {
-            return JSON.parse(localStorage.getItem(demoDraftStorageKey) || "null");
-        } catch {
-            return null;
-        }
-    })()
-    : postStorage.getDraft();
+renderContentBlocks();
 
-if (savedDraft) {
-    populatePostForm(savedDraft);
-    showPublishingStatus(
-        isDemoMode
-            ? "Saved demo draft restored from this browser."
-            : "Saved draft restored from this browser."
-    );
+const builderQuery = new URLSearchParams(window.location.search);
+
+if (["pasted", "enhanced"].includes(builderQuery.get("import"))) {
+    const storedPostImport = sessionStorage.getItem("cmsPastedPostImport");
+
+    try {
+        const postImport = JSON.parse(storedPostImport || "{}");
+        contentBlocks = Array.isArray(postImport.contentBlocks)
+            ? postImport.contentBlocks.filter((block) => (
+                ["heading", "paragraph", "quote"].includes(block.type)
+                && typeof block.text === "string"
+                && block.text.trim()
+            ))
+            : [];
+
+        postForm.querySelector("#post-title").value = typeof postImport.title === "string"
+            ? postImport.title.slice(0, 100)
+            : "";
+        postForm.querySelector("#post-excerpt").value = typeof postImport.excerpt === "string"
+            ? postImport.excerpt.slice(0, 160)
+            : "";
+        postForm.querySelector("#post-category").value = typeof postImport.category === "string"
+            ? postImport.category
+            : "";
+        postForm.querySelector("#post-tags").value = Array.isArray(postImport.tags)
+            ? postImport.tags.filter((tag) => typeof tag === "string").join(", ")
+            : "";
+        sessionStorage.removeItem("cmsPastedPostImport");
+
+        renderContentBlocks();
+        renderPostPreview(getPostData());
+        showPublishingStatus("Your title, SEO summary, post details, and article blocks are ready to edit.");
+    } catch (error) {
+        sessionStorage.removeItem("cmsPastedPostImport");
+        console.error("Unable to import pasted article:", error);
+    }
 }
 
-renderPostPreview(getPostData());
+if (builderQuery.get("draft") === "continue") {
+    const savedDraft = postStorage.getDraft();
+
+    if (savedDraft) {
+        populatePostForm(savedDraft);
+        showPublishingStatus("Continued your saved browser draft.");
+    }
+}

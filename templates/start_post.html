@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#050b14">
+    <title>Create Post | Rise Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/create_post.css') }}">
+</head>
+<body class="post-start-body">
+    <header class="app-header">
+        <div class="theme-selector">
+            <label class="visually-hidden" for="theme-selector">Select color theme</label>
+            <select id="theme-selector" class="theme-selector__select">
+                <option value="midnight">Midnight Gold</option>
+                <option value="obsidian">Obsidian Silver</option>
+                <option value="sage">Sage Estate</option>
+            </select>
+        </div>
+        <nav class="top-navigation" aria-label="Main navigation">
+            <form class="search-form" role="search">
+                <label class="visually-hidden" for="global-search">Search posts, members, and topics</label>
+                <svg class="search-form__icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+                <input class="search-form__input" id="global-search" name="query" type="search" placeholder="Search posts, members, topics..." autocomplete="off">
+            </form>
+            <div class="navigation-actions">
+                <button class="icon-button" type="button" aria-label="Notifications, 3 unread"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M10 21h4"></path></svg><span class="count-badge" aria-hidden="true">3</span></button>
+                <button class="icon-button" type="button" aria-label="Messages, 2 unread"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m3 7 9 6 9-6"></path></svg><span class="count-badge" aria-hidden="true">2</span></button>
+                <button class="profile-button" type="button" aria-label="Open profile menu"><span class="profile-button__avatar" aria-hidden="true">Chris</span></button>
+            </div>
+        </nav>
+    </header>
+
+    <main class="post-start-page" id="main-content">
+        <div class="post-start-layout">
+        <section class="post-start-card" aria-labelledby="create-post-title">
+            <a class="post-editor-card__back-link" href="{{ url_for('dashboard') }}"><span aria-hidden="true">←</span>Dashboard</a>
+            <h1 class="post-start-card__title" id="create-post-title">Create new post</h1>
+            <p class="post-start-card__description">Share insights, market updates, and stories with your audience.</p>
+
+            <div class="post-start-card__divider"></div>
+
+            <section class="post-start-options" aria-labelledby="start-options-title">
+                <h2 id="start-options-title">How would you like to start?</h2>
+                <div class="post-start-options__grid">
+                    <a class="post-start-option" href="{{ url_for('new_post_paste') }}">
+                        <span class="post-start-option__icon" aria-hidden="true">▤</span>
+                        <span class="post-start-option__content">
+                            <strong>Paste an article</strong>
+                            <span>Bring in a finished article and customize it.</span>
+                        </span>
+                        <span class="post-start-option__arrow" aria-hidden="true">Paste article →</span>
+                    </a>
+
+                    <a class="post-start-option" href="{{ url_for('new_post_builder') }}">
+                        <span class="post-start-option__icon" aria-hidden="true">+</span>
+                        <span class="post-start-option__content">
+                            <strong>Build manually</strong>
+                            <span>Build your article block by block.</span>
+                        </span>
+                        <span class="post-start-option__arrow" aria-hidden="true">Start building →</span>
+                    </a>
+                </div>
+            </section>
+
+            <section class="post-start-drafts" aria-labelledby="drafts-title">
+                <div class="post-start-drafts__heading">
+                    <div>
+                        <h2 id="drafts-title">📝 Continue from a draft</h2>
+                    </div>
+                    <button class="post-start-drafts__view-all" id="load-more-drafts" type="button" hidden>View all →</button>
+                </div>
+                <div class="post-start-drafts__grid" id="drafts-list"></div>
+                <p class="post-start-drafts__empty" id="drafts-empty-state">Your saved browser draft will appear here.</p>
+            </section>
+        </section>
+
+        <aside class="post-start-sidebar" aria-label="Post publishing information">
+            <section class="post-start-side-card" aria-labelledby="start-setup-title">
+                <h2 id="start-setup-title">Post setup</h2>
+                <p>Choose a starting method to set your category, tags, and publishing details.</p>
+                <div class="post-start-side-card__rows">
+                    <span>Category <strong>Not selected</strong></span>
+                    <span>Tags <strong>Not added</strong></span>
+                </div>
+            </section>
+
+            <section class="post-start-side-card" aria-labelledby="start-thumbnail-title">
+                <h2 id="start-thumbnail-title">Post thumbnail</h2>
+                <div class="post-start-thumbnail" aria-hidden="true">No thumbnail selected</div>
+                <p>Add a thumbnail after you begin your post.</p>
+            </section>
+
+            <section class="post-start-side-card" aria-labelledby="start-preview-title">
+                <h2 id="start-preview-title">Post preview</h2>
+                <article class="post-start-preview">
+                    <div class="post-start-preview__media">Your thumbnail</div>
+                    <div class="post-start-preview__content">
+                        <span>YOUR CATEGORY</span>
+                        <h3>Your article title</h3>
+                        <p>Your summary and article preview will appear here.</p>
+                    </div>
+                </article>
+            </section>
+        </aside>
+
+        </div>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/post_storage.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/start_post.js') }}"></script>
+</body>
+</html>
