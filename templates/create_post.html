@@ -133,73 +133,81 @@
                 </header>
 
                 <div class="post-editor-card__body">
-                    <div class="block-builder__heading">
-                        <div>
-                            <h2 id="article-title-heading">Article title</h2>
-                            <p>Use a clear title to help readers and search engines understand your article.</p>
+                    <section class="article-details" id="article-details" aria-labelledby="article-details-heading">
+                        <div class="article-details__header">
+                            <p class="article-details__label">Article details</p>
+                            <button class="article-details__edit-button" id="edit-article-details-button" type="button">
+                                Edit
+                            </button>
                         </div>
 
-                    </div>
-
-                    <div class="editor-field">
-                        <div class="editor-field__heading">
-                            <label class="editor-field__label" for="post-title">
-                                Post title
-                            </label>
-
-                            <span
-                                class="editor-field__counter"
-                                id="title-character-count"
-                                aria-live="polite"
-                            >
-                                0/100
-                            </span>
+                        <div class="article-details__preview">
+                            <h2 id="article-details-heading">Add your article title</h2>
+                            <p id="article-details-summary">Add a concise SEO summary for search results and article previews.</p>
                         </div>
 
-                        <input
-                            class="editor-field__input"
-                            id="post-title"
-                            name="title"
-                            type="text"
-                            data-post-field="title"
-                            maxlength="100"
-                            placeholder="Enter a clear, compelling title"
-                            aria-describedby="title-character-count"
-                            required
-                        >
-                    </div>
+                        <div class="article-details__fields">
+                            <div class="editor-field">
+                                <div class="editor-field__heading">
+                                    <label class="editor-field__label" for="post-title">
+                                        Post title
+                                    </label>
 
-                    <div class="editor-field editor-field--summary">
-                        <div class="editor-field__heading">
-                            <label class="editor-field__label" for="post-excerpt">
-                                SEO summary
-                            </label>
+                                    <span
+                                        class="editor-field__counter"
+                                        id="title-character-count"
+                                        aria-live="polite"
+                                    >
+                                        0/100
+                                    </span>
+                                </div>
 
-                            <span
-                                class="editor-field__counter"
-                                id="excerpt-character-count"
-                                aria-live="polite"
-                            >
-                                0/160
-                            </span>
+                                <input
+                                    class="editor-field__input"
+                                    id="post-title"
+                                    name="title"
+                                    type="text"
+                                    data-post-field="title"
+                                    maxlength="100"
+                                    placeholder="Enter a clear, compelling title"
+                                    aria-describedby="title-character-count"
+                                    required
+                                >
+                            </div>
+
+                            <div class="editor-field editor-field--summary">
+                                <div class="editor-field__heading">
+                                    <label class="editor-field__label" for="post-excerpt">
+                                        SEO summary
+                                    </label>
+
+                                    <span
+                                        class="editor-field__counter"
+                                        id="excerpt-character-count"
+                                        aria-live="polite"
+                                    >
+                                        0/160
+                                    </span>
+                                </div>
+
+                                <p class="editor-field__description">
+                                    A short description used in search results and article previews.
+                                </p>
+
+                                <textarea
+                                    class="editor-field__textarea"
+                                    id="post-excerpt"
+                                    name="excerpt"
+                                    data-post-field="excerpt"
+                                    rows="4"
+                                    maxlength="160"
+                                    placeholder="Summarize what readers will learn from this article..."
+                                    aria-describedby="excerpt-character-count"
+                                    required
+                                ></textarea>
+                            </div>
                         </div>
-
-                        <p class="editor-field__description">
-                            A short description used in search results and article previews.
-                        </p>
-
-                        <textarea
-                            class="editor-field__textarea"
-                            id="post-excerpt"
-                            name="excerpt"
-                            data-post-field="excerpt"
-                            rows="4"
-                            maxlength="160"
-                            placeholder="Summarize what readers will learn from this article..."
-                            aria-describedby="excerpt-character-count"
-                            required
-                        ></textarea>
-                    </div>
+                    </section>
 
                     <section class="block-builder" aria-label="Article content blocks">
                         <div class="block-builder__list" id="content-block-list"></div>
@@ -219,34 +227,6 @@
                         </div>
                     </section>
 
-                    <div class="post-editor-card__actions post-editor-card__actions--footer">
-                        <button
-                            class="editor-button editor-button--secondary"
-                            type="button"
-                            id="save-draft-button"
-                            data-post-status="draft"
-                        >
-                            Save draft
-                        </button>
-
-                        <button
-                            class="editor-button editor-button--accent"
-                            type="button"
-                            id="preview-button"
-                        >
-                            Preview
-                        </button>
-
-                        <button
-                            class="editor-button editor-button--primary"
-                            id="publish-post-button"
-                            data-post-status="published"
-                            type="button"
-                        >
-                            {% if demo_mode %}Publish demo{% else %}Publish post{% endif %}
-                        </button>
-                    </div>
-
                 </div>
             </section>
 
@@ -262,7 +242,7 @@
                         class="publishing-card__title"
                         id="publishing-options-title"
                     >
-                        Publish options
+                        Post setup
                     </h2>
 
                     <div class="publishing-fields">
@@ -288,7 +268,7 @@
 
                         <div class="publishing-field">
                             <label class="publishing-field__label" for="post-tags">
-                                Tags
+                                Tags <span>(optional)</span>
                             </label>
 
                             <input
@@ -309,29 +289,49 @@
                     </div>
                 </section>
 
-                <section class="publishing-card" aria-labelledby="thumbnail-title">
-                    <h2 class="publishing-card__title" id="thumbnail-title">
-                        Post thumbnail
-                    </h2>
+                <section class="publishing-card ai-assistant-card" id="ai-assistant-card" aria-labelledby="ai-assistant-title">
+                    <div class="ai-assistant-card__header">
+                        <div class="ai-assistant-card__identity">
+                            <img src="{{ url_for('static', filename='images/aicedbot-wave.png') }}" alt="" aria-hidden="true">
+                            <div>
+                                <h2 class="publishing-card__title" id="ai-assistant-title">AICED BOT</h2>
+                                <small>Your AI writing assistant</small>
+                            </div>
+                        </div>
+                        <div class="ai-assistant-card__header-actions">
+                            <button class="ai-assistant-card__tips" type="button" title="AI assistant actions will be connected next"><span aria-hidden="true">♧</span> Tips</button>
+                            <button class="ai-assistant-card__close" id="ai-assistant-card-toggle-button" type="button" aria-label="Collapse Aiced Bot panel" aria-expanded="true" aria-controls="ai-assistant-card-content" title="Collapse Aiced Bot panel"><span aria-hidden="true">⌃</span></button>
+                        </div>
+                    </div>
 
-                    <label class="image-drop-zone" id="featured-image-drop-zone" for="post-featured-image">
-                        <input
-                            class="featured-image-input"
-                            id="post-featured-image"
-                            name="featured_image"
-                            data-post-field="featuredImage"
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                        >
-                        <span class="image-drop-zone__title">Drop an image here</span>
-                        <span class="image-drop-zone__help">or click to choose a JPEG, PNG, or WebP file</span>
-                    </label>
-                    <p class="publishing-field__help">Images are shown in the preview and saved with the post.</p>
-                    <div class="thumbnail-preview" id="thumbnail-preview" hidden>
-                        <button class="thumbnail-preview__image-button" id="view-thumbnail-button" type="button" aria-label="View post thumbnail at full size">
-                            <img id="thumbnail-preview-image" alt="Selected post thumbnail">
+                    <div class="ai-assistant-card__content" id="ai-assistant-card-content">
+                        <h3 class="ai-assistant-card__heading">Improve your article</h3>
+                        <p class="ai-assistant-card__description">Get quick help with writing, SEO, tone, and more.</p>
+
+                        <div class="ai-assistant-card__quick-actions" aria-label="AI quick actions">
+                        <button id="improve-seo-button" type="button" data-ai-action="seo" title="Improve SEO"><span class="ai-assistant-card__action-icon"><img src="{{ url_for('static', filename='images/aicedbot-seo-bars.png') }}" alt=""></span><span><strong>Improve SEO</strong><small>Better visibility and keywords</small></span></button>
+                        <button type="button" title="Improve readability will be connected next"><span class="ai-assistant-card__action-icon"><img src="{{ url_for('static', filename='images/aicedbot-readability.png') }}" alt=""></span><span><strong>Improve readability</strong><small>Clearer and simpler writing</small></span></button>
+                        <button type="button" title="Make it shorter will be connected next"><span class="ai-assistant-card__action-icon"><img src="{{ url_for('static', filename='images/aicedbot-shorten.png') }}" alt=""></span><span><strong>Make it shorter</strong><small>Remove fluff, keep the key points</small></span></button>
+                        <button type="button" title="Use a warmer tone will be connected next"><span class="ai-assistant-card__action-icon"><img src="{{ url_for('static', filename='images/aicedbot-tone.png') }}" alt=""></span><span><strong>Use a warmer tone</strong><small>Professional, friendly, or casual</small></span></button>
+                        </div>
+                        <div class="ai-assistant-card__status" id="ai-assistant-status" aria-live="polite" hidden>
+                            <span id="ai-assistant-status-message"></span>
+                            <button id="undo-ai-assistant-button" type="button" hidden>Undo</button>
+                        </div>
+
+                        <button class="ai-assistant-card__enhance" type="button" title="Article enhancement will be connected next">
+                        <img class="ai-assistant-card__enhance-bot" src="{{ url_for('static', filename='images/aicedbotrunning.png') }}" alt="">
+                        <span><strong>Enhance entire article</strong><small>Improve SEO, readability, structure &amp; tone</small></span>
                         </button>
-                        <button class="thumbnail-preview__remove-button" id="remove-thumbnail-button" type="button" aria-label="Remove post thumbnail" title="Remove thumbnail">×</button>
+
+                        <div class="ai-assistant-card__ask">
+                        <p><span></span>or<span></span></p>
+                        <div class="ai-assistant-card__request-row">
+                            <textarea id="ai-assistant-request" rows="1" aria-label="Ask Aiced Bot for suggestions" placeholder="Tell Aiced Bot what to change…"></textarea>
+                            <button type="button" aria-label="Send AI request" title="Custom AI requests will be connected next">➤</button>
+                        </div>
+                        <div class="ai-assistant-card__examples" aria-label="Example AI requests"><span>Examples:</span><button type="button">“Make the intro shorter”</button><button type="button">“Add a section about Palmdale”</button></div>
+                        </div>
                     </div>
                 </section>
 
@@ -339,27 +339,38 @@
                     class="publishing-card"
                     aria-labelledby="post-preview-title"
                 >
-                    <div class="publishing-card__title-row">
-                        <h2
-                            class="publishing-card__title"
-                            id="post-preview-title"
-                        >
-                            Post preview
-                        </h2>
-                        <button class="publishing-card__preview-button" id="open-full-preview-button" type="button">View full preview</button>
-                    </div>
+                    <h2
+                        class="publishing-card__title"
+                        id="post-preview-title"
+                    >
+                        Post preview
+                    </h2>
 
                     <article class="editor-preview" id="post-preview">
-                        <div class="editor-preview__media">
-                            <img
-                                class="editor-preview__image"
-                                id="preview-image"
-                                src="{{ url_for('static', filename='images/collov-home-design-qWXGmMRe4so-unsplash.webp') }}"
-                                alt=""
+                        <div
+                            class="editor-preview__media is-empty"
+                            id="featured-image-drop-zone"
+                            role="button"
+                            tabindex="0"
+                            aria-label="Add a cover image"
+                        >
+                            <input
+                                class="featured-image-input"
+                                id="post-featured-image"
+                                name="featured_image"
+                                data-post-field="featuredImage"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
                             >
-                            <p class="editor-preview__no-image" id="preview-no-image" hidden>
-                                No thumbnail selected
-                            </p>
+                            <button class="editor-preview__image-button" id="view-thumbnail-button" type="button" aria-label="View cover image at full size" hidden>
+                                <img class="editor-preview__image" id="preview-image" alt="Selected cover image">
+                            </button>
+                            <div class="editor-preview__media-upload" id="preview-no-image">
+                                <span aria-hidden="true">▧</span>
+                                <strong>Add cover image</strong>
+                                <span>Drop image or click to browse</span>
+                            </div>
+                            <button class="editor-preview__remove-button" id="remove-thumbnail-button" type="button" aria-label="Remove cover image" title="Remove cover image" hidden>×</button>
                         </div>
 
                         <div class="editor-preview__content">
@@ -395,10 +406,88 @@
                         id="publishing-status"
                         aria-live="polite"
                     ></p>
+
+                    <div class="publishing-card__actions">
+                        <button
+                            class="editor-button editor-button--secondary"
+                            type="button"
+                            id="save-draft-button"
+                            data-post-status="draft"
+                        >
+                            Save draft
+                        </button>
+                        <button
+                            class="editor-button editor-button--accent"
+                            type="button"
+                            id="preview-button"
+                        >
+                            View full page
+                        </button>
+                        <button
+                            class="editor-button editor-button--primary"
+                            id="publish-post-button"
+                            data-post-status="published"
+                            type="button"
+                        >
+                            {% if demo_mode %}Publish demo{% else %}Publish post{% endif %}
+                        </button>
+                    </div>
                 </section>
             </aside>
         </form>
     </main>
+
+    <button class="aiced-bot-sticky" id="aiced-bot-launcher" type="button" title="Open Aiced Bot assistant" aria-label="Open Aiced Bot assistant" aria-expanded="false" aria-controls="aiced-bot-panel">
+        <img src="{{ url_for('static', filename='images/aicedbotprototype.png') }}" alt="">
+    </button>
+
+    <div class="aiced-bot-panel-backdrop" id="aiced-bot-panel-backdrop" hidden>
+        <aside class="aiced-bot-panel" id="aiced-bot-panel" role="dialog" aria-modal="true" aria-labelledby="aiced-bot-panel-title" tabindex="-1">
+            <div class="aiced-bot-panel__header">
+                <div class="aiced-bot-panel__identity">
+                    <img src="{{ url_for('static', filename='images/aicedbot-wave.png') }}" alt="" aria-hidden="true">
+                    <span>Aiced Bot</span>
+                </div>
+                <button class="aiced-bot-panel__close" id="aiced-bot-panel-close" type="button" aria-label="Close Aiced Bot">×</button>
+            </div>
+            <div class="aiced-bot-panel__body" id="aiced-bot-panel-body">
+                <div id="aiced-bot-idle-content">
+                    <h2 id="aiced-bot-panel-title">How can I help?</h2>
+                    <p>Improve your article with Aiced Bot.</p>
+                    <div class="aiced-bot-panel__actions" aria-label="Aiced Bot suggestions">
+                    <button type="button" data-aiced-bot-action="improve_seo">
+                        <span class="aiced-bot-panel__action-icon" aria-hidden="true"><img src="{{ url_for('static', filename='images/aicedbot-seo-bars.png') }}" alt=""></span>
+                        <span class="aiced-bot-panel__action-copy"><strong>Improve SEO</strong><small>Better visibility and keyword usage</small></span>
+                    </button>
+                    <button type="button" data-aiced-bot-action="improve_readability">
+                        <span class="aiced-bot-panel__action-icon" aria-hidden="true"><img src="{{ url_for('static', filename='images/aicedbot-readability.png') }}" alt=""></span>
+                        <span class="aiced-bot-panel__action-copy"><strong>Improve readability</strong><small>Clearer and simpler writing</small></span>
+                    </button>
+                    <button type="button" data-aiced-bot-action="make_shorter">
+                        <span class="aiced-bot-panel__action-icon" aria-hidden="true"><img src="{{ url_for('static', filename='images/aicedbot-shorten.png') }}" alt=""></span>
+                        <span class="aiced-bot-panel__action-copy"><strong>Make it shorter</strong><small>Remove fluff and keep key points</small></span>
+                    </button>
+                    <button type="button" data-aiced-bot-action="change_tone">
+                        <span class="aiced-bot-panel__action-icon" aria-hidden="true"><img src="{{ url_for('static', filename='images/aicedbot-tone.png') }}" alt=""></span>
+                        <span class="aiced-bot-panel__action-copy"><strong>Change tone</strong><small>Professional, friendly, or conversational</small></span>
+                    </button>
+                    </div>
+                </div>
+                <div class="aiced-bot-panel__workflow" id="aiced-bot-workflow-content" aria-live="polite" hidden></div>
+            </div>
+            <div class="aiced-bot-panel__composer" id="aiced-bot-panel-composer">
+                <textarea rows="1" aria-label="Tell Aiced Bot what you would like changed" placeholder="Do anything with AI…"></textarea>
+                <div class="aiced-bot-panel__composer-actions">
+                    <div class="aiced-bot-panel__composer-tools">
+                        <input class="visually-hidden" id="aiced-bot-file-input" type="file" multiple>
+                        <label for="aiced-bot-file-input" aria-label="Attach files" title="Choose files to attach">+</label>
+                    </div>
+                    <span>Auto</span>
+                    <button class="aiced-bot-panel__send" type="button" aria-label="Send custom request" title="Custom Aiced Bot requests will be connected next">↑</button>
+                </div>
+            </div>
+        </aside>
+    </div>
 
     <dialog class="editor-dialog" id="thumbnail-viewer-dialog" aria-labelledby="thumbnail-viewer-title">
         <div class="editor-dialog__header">

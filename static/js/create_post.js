@@ -29,11 +29,16 @@ themeSelector.addEventListener("change", (event) => {
 // Post form data
 const postForm = document.querySelector("[data-post-form]");
 const isDemoMode = postForm.dataset.demoMode === "true";
+const articleDetails = document.querySelector("#article-details");
+const articleDetailsEditButton = document.querySelector("#edit-article-details-button");
+const articleDetailsTitle = document.querySelector("#article-details-heading");
+const articleDetailsSummary = document.querySelector("#article-details-summary");
 const saveDraftButton = document.querySelector("#save-draft-button");
 const previewButton = document.querySelector("#preview-button");
 const publishPostButton = document.querySelector("#publish-post-button");
 const featuredImageInput = document.querySelector("#post-featured-image");
 const previewImage = document.querySelector("#preview-image");
+const previewImageButton = document.querySelector("#view-thumbnail-button");
 const previewNoImage = document.querySelector("#preview-no-image");
 const previewCategory = document.querySelector("#preview-category");
 const previewTitle = document.querySelector("#preview-title");
@@ -45,8 +50,6 @@ const blockBuilderFooter = document.querySelector(".block-builder__footer");
 const addBlockMenu = document.querySelector(".block-builder__add-menu--bottom");
 const addBlockButtons = document.querySelectorAll("[data-add-block]");
 const featuredImageDropZone = document.querySelector("#featured-image-drop-zone");
-const thumbnailPreview = document.querySelector("#thumbnail-preview");
-const thumbnailPreviewImage = document.querySelector("#thumbnail-preview-image");
 const viewThumbnailButton = document.querySelector("#view-thumbnail-button");
 const removeThumbnailButton = document.querySelector("#remove-thumbnail-button");
 const thumbnailViewerDialog = document.querySelector("#thumbnail-viewer-dialog");
@@ -55,15 +58,57 @@ const closeThumbnailViewerButton = document.querySelector("#close-thumbnail-view
 const thumbnailRemoveDialog = document.querySelector("#thumbnail-remove-dialog");
 const cancelThumbnailRemoveButton = document.querySelector("#cancel-thumbnail-remove-button");
 const confirmThumbnailRemoveButton = document.querySelector("#confirm-thumbnail-remove-button");
-const openFullPreviewButton = document.querySelector("#open-full-preview-button");
 const fullPreviewDialog = document.querySelector("#full-preview-dialog");
 const closeFullPreviewButton = document.querySelector("#close-full-preview-button");
 const fullPreviewMockup = document.querySelector("#full-preview-mockup");
+const aicedBotLauncher = document.querySelector("#aiced-bot-launcher");
+const aicedBotPanelBackdrop = document.querySelector("#aiced-bot-panel-backdrop");
+const aicedBotPanel = document.querySelector("#aiced-bot-panel");
+const closeAicedBotPanelButton = document.querySelector("#aiced-bot-panel-close");
+const aicedBotPanelBody = document.querySelector("#aiced-bot-panel-body");
+const aicedBotIdleContent = document.querySelector("#aiced-bot-idle-content");
+const aicedBotWorkflowContent = document.querySelector("#aiced-bot-workflow-content");
+const aicedBotPanelComposer = document.querySelector("#aiced-bot-panel-composer");
+const aiAssistantCardToggleButton = document.querySelector("#ai-assistant-card-toggle-button");
+const aiAssistantCardContent = document.querySelector("#ai-assistant-card-content");
+const improveSeoButton = document.querySelector("#improve-seo-button");
+const aiAssistantStatus = document.querySelector("#ai-assistant-status");
+const aiAssistantStatusMessage = document.querySelector("#ai-assistant-status-message");
+const undoAiAssistantButton = document.querySelector("#undo-ai-assistant-button");
 
 let featuredImageDataUrl = null;
 let isPublishing = false;
 let contentBlocks = [];
 let draggedBlockIndex = null;
+let draggedSectionBlockIndexes = null;
+const editingSectionHeadingBlocks = new Set();
+let sectionStartHeadings = new WeakSet();
+let standaloneBetweenSectionBlocks = new WeakSet();
+let lastContentBlocksSnapshot = [];
+let aiUndoState = null;
+let isAiEditProcessing = false;
+let aiDrawerState = {mode: "idle", beforeState: null, afterState: null};
+
+function setAicedBotPanelOpen(isOpen) {
+    aicedBotLauncher.setAttribute("aria-expanded", String(isOpen));
+
+    if (isOpen) {
+        aicedBotPanelBackdrop.hidden = false;
+        window.requestAnimationFrame(() => {
+            aicedBotPanelBackdrop.classList.add("is-open");
+            aicedBotPanel.focus();
+        });
+        return;
+    }
+
+    aicedBotPanelBackdrop.classList.remove("is-open");
+    window.setTimeout(() => {
+        if (!aicedBotPanelBackdrop.classList.contains("is-open")) {
+            aicedBotPanelBackdrop.hidden = true;
+        }
+    }, 180);
+    aicedBotLauncher.focus();
+}
 
 const demoDraftStorageKey = "cmsDemoPostDraft";
 const demoPublishedStorageKey = "cmsDemoPublishedPost";
@@ -93,25 +138,49 @@ const blockPresentation = {
     cta: { label: "Call to action", icon: "↗" }
 };
 
+function renderArticleDetails() {
+    const title = postForm.querySelector("#post-title").value.trim();
+    const excerpt = postForm.querySelector("#post-excerpt").value.trim();
+
+    articleDetailsTitle.textContent = title || "Add your article title";
+    articleDetailsSummary.textContent = excerpt
+        || "Add a concise SEO summary for search results and article previews.";
+}
+
+function toggleArticleDetailsEditor() {
+    const isEditing = articleDetails.classList.toggle("is-editing");
+    articleDetailsEditButton.textContent = isEditing ? "Done" : "Edit";
+
+    if (isEditing) {
+        postForm.querySelector("#post-title").focus();
+    }
+}
+
 function createBlockField(block, field, labelText, multiline = false) {
     const fieldWrapper = document.createElement("label");
     fieldWrapper.className = "block-builder__field";
-    fieldWrapper.textContent = labelText;
+
+    const label = document.createElement("span");
+    label.className = "block-builder__field-label";
+    label.textContent = labelText;
 
     const control = document.createElement(multiline ? "textarea" : "input");
     control.className = "block-builder__input";
     control.type = field === "url" ? "url" : "text";
     control.value = block[field] || "";
-    control.rows = multiline ? 4 : undefined;
+    control.placeholder = field === "url" ? "Or input URL" : "";
+    control.rows = multiline ? 2 : undefined;
     control.addEventListener("input", (event) => {
         block[field] = event.target.value;
         renderPostPreview(getPostData());
     });
-    control.addEventListener("change", () => {
-        renderContentBlocks();
-    });
+    if (!["heading", "paragraph"].includes(block.type)) {
+        control.addEventListener("change", () => {
+            renderContentBlocks();
+        });
+    }
 
-    fieldWrapper.append(control);
+    fieldWrapper.append(label, control);
     return fieldWrapper;
 }
 
@@ -123,6 +192,38 @@ function getBlockPreview(block) {
     return block.text || block.url || `Add ${blockPresentation[block.type].label.toLowerCase()} content`;
 }
 
+function cloneContentBlocks(blocks = contentBlocks) {
+    return blocks.map((block) => ({ ...block }));
+}
+
+function markExistingHeadingsAsSectionStarts() {
+    sectionStartHeadings = new WeakSet();
+    contentBlocks.forEach((block) => {
+        if (block.type === "heading") {
+            sectionStartHeadings.add(block);
+        }
+    });
+}
+
+function resetStandaloneBetweenSectionBlocks() {
+    standaloneBetweenSectionBlocks = new WeakSet();
+}
+
+function applyContentMutation(mutator) {
+    const snapshot = cloneContentBlocks();
+    lastContentBlocksSnapshot = snapshot;
+
+    try {
+        mutator();
+        renderContentBlocks();
+    } catch (error) {
+        contentBlocks = cloneContentBlocks(lastContentBlocksSnapshot);
+        renderContentBlocks();
+        showPublishingStatus("Your previous article content was restored after an editor error.");
+        console.error("Unable to apply article block change:", error);
+    }
+}
+
 function changeBlockType(block, nextType) {
     if (block.type === nextType) {
         return;
@@ -130,18 +231,32 @@ function changeBlockType(block, nextType) {
 
     const text = block.text || "";
     const url = block.url || "";
+    const nextTypeUsesText = ["heading", "paragraph", "quote", "cta"].includes(nextType);
+    const nextTypeUsesUrl = ["image", "youtube", "cta"].includes(nextType);
+    const willDiscardText = Boolean(text.trim()) && !nextTypeUsesText;
+    const willDiscardUrl = Boolean(url.trim()) && !nextTypeUsesUrl;
 
-    if (["heading", "paragraph", "quote"].includes(nextType)) {
-        Object.assign(block, { type: nextType, text });
-        delete block.url;
-    } else if (["image", "youtube"].includes(nextType)) {
-        Object.assign(block, { type: nextType, url });
-        delete block.text;
-    } else {
-        Object.assign(block, { type: "cta", text, url });
+    if ((willDiscardText || willDiscardUrl) && !window.confirm(
+        "This conversion will replace the current block content. Continue?"
+    )) {
+        return;
     }
 
-    renderContentBlocks();
+    applyContentMutation(() => {
+        if (block.type === "heading" && nextType !== "heading") {
+            sectionStartHeadings.delete(block);
+        }
+
+        if (["heading", "paragraph", "quote"].includes(nextType)) {
+            Object.assign(block, { type: nextType, text });
+            delete block.url;
+        } else if (["image", "youtube"].includes(nextType)) {
+            Object.assign(block, { type: nextType, url });
+            delete block.text;
+        } else {
+            Object.assign(block, { type: "cta", text, url });
+        }
+    });
 }
 
 function createBlockTypePicker(block) {
@@ -212,13 +327,105 @@ function moveBlock(fromIndex, toIndex) {
         return;
     }
 
-    const [movedBlock] = contentBlocks.splice(fromIndex, 1);
-    contentBlocks.splice(toIndex, 0, movedBlock);
-    renderContentBlocks();
+    applyContentMutation(() => {
+        const [movedBlock] = contentBlocks.splice(fromIndex, 1);
+        contentBlocks.splice(toIndex, 0, movedBlock);
+    });
 }
 
-function setDropZoneState(element, isActive) {
-    element.classList.toggle("is-dragging-over", isActive);
+function setDropZoneState(element, placement = null) {
+    element.classList.remove(
+        "is-dragging-over",
+        "is-dragging-above",
+        "is-dragging-below"
+    );
+
+    if (typeof placement === "boolean") {
+        element.classList.toggle("is-dragging-over", placement);
+        return;
+    }
+
+    if (placement) {
+        element.classList.add("is-dragging-over", `is-dragging-${placement}`);
+    }
+}
+
+function getBlockDropPlacement(blockElement, clientY) {
+    const targetIndex = Number(blockElement.dataset.blockIndex);
+    const bounds = blockElement.getBoundingClientRect();
+    const placement = clientY < bounds.top + bounds.height / 2 ? "above" : "below";
+    let destinationIndex = targetIndex + (placement === "below" ? 1 : 0);
+
+    if (draggedBlockIndex < destinationIndex) {
+        destinationIndex -= 1;
+    }
+
+    return {
+        destinationIndex,
+        placement: destinationIndex === draggedBlockIndex ? null : placement
+    };
+}
+
+function getArticleSectionDropTarget(event) {
+    const section = event.target.closest(".article-section");
+
+    if (!section) {
+        return null;
+    }
+
+    const bounds = section.getBoundingClientRect();
+    const edgeZone = Math.min(42, bounds.height * 0.22);
+    const placement = event.clientY <= bounds.top + edgeZone
+        ? "above"
+        : event.clientY >= bounds.bottom - edgeZone
+            ? "below"
+            : null;
+
+    return placement ? { section, placement } : null;
+}
+
+function getSectionDropPlacement(section, placement) {
+    const sectionIndexes = [...section.querySelectorAll(".block-builder__block")]
+        .map((blockElement) => Number(blockElement.dataset.blockIndex));
+
+    const draggedIndexes = draggedSectionBlockIndexes || [draggedBlockIndex];
+
+    if (!sectionIndexes.length || draggedIndexes.some((index) => sectionIndexes.includes(index))) {
+        return { destinationIndex: null, placement: null };
+    }
+
+    const rawDestinationIndex = placement === "above"
+        ? Math.min(...sectionIndexes)
+        : Math.max(...sectionIndexes) + 1;
+
+    if (draggedSectionBlockIndexes) {
+        return { destinationIndex: rawDestinationIndex, placement };
+    }
+
+    const destinationIndex = draggedBlockIndex < rawDestinationIndex
+        ? rawDestinationIndex - 1
+        : rawDestinationIndex;
+
+    return { destinationIndex, placement };
+}
+
+function moveSection(blockIndexes, rawDestinationIndex) {
+    const sortedIndexes = [...blockIndexes].sort((first, second) => first - second);
+
+    if (!sortedIndexes.length || rawDestinationIndex === null) {
+        return;
+    }
+
+    applyContentMutation(() => {
+        const blocksToMove = sortedIndexes.map((index) => contentBlocks[index]);
+        const movingBlocks = new Set(blocksToMove);
+        const adjustedDestinationIndex = rawDestinationIndex - sortedIndexes.filter(
+            (index) => index < rawDestinationIndex
+        ).length;
+
+        contentBlocks = contentBlocks.filter((block) => !movingBlocks.has(block));
+        contentBlocks.splice(adjustedDestinationIndex, 0, ...blocksToMove);
+    });
 }
 
 function getDroppedImageFile(dataTransfer) {
@@ -239,8 +446,10 @@ function validateImageFile(file) {
 async function setImageBlockFile(block, file) {
     try {
         validateImageFile(file);
-        block.url = await readImageFile(file);
-        renderContentBlocks();
+        const imageUrl = await readImageFile(file);
+        applyContentMutation(() => {
+            block.url = imageUrl;
+        });
         showPublishingStatus("Image block ready to publish.");
     } catch (error) {
         showPublishingStatus(error.message);
@@ -288,9 +497,9 @@ function createImageDropZone(block) {
     return dropZone;
 }
 
-function createInsertionMenu(insertionIndex) {
+function createInlineBlockInsertionMenu(anchorBlock) {
     const menu = document.createElement("details");
-    menu.className = "block-builder__insert-menu";
+    menu.className = "block-builder__insert-menu block-builder__insert-menu--inline-block";
 
     const summary = document.createElement("summary");
     summary.setAttribute("aria-label", "Insert content block here");
@@ -302,15 +511,90 @@ function createInsertionMenu(insertionIndex) {
     Object.entries(blockPresentation).forEach(([type, presentation]) => {
         const button = document.createElement("button");
         button.type = "button";
-        button.textContent = presentation.label;
+        const icon = document.createElement("span");
+        icon.className = `block-builder__insert-icon block-builder__insert-icon--${type}`;
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = presentation.icon;
+        const label = document.createElement("span");
+        label.textContent = presentation.label;
+        button.append(icon, label);
         button.addEventListener("click", () => {
-            contentBlocks.splice(insertionIndex, 0, { ...blockDefaults[type] });
-            renderContentBlocks();
+            applyContentMutation(() => {
+                const insertionIndex = contentBlocks.indexOf(anchorBlock) + 1;
+
+                if (insertionIndex === 0) {
+                    throw new Error("The block you tried to add content after no longer exists.");
+                }
+
+                contentBlocks.splice(insertionIndex, 0, { ...blockDefaults[type] });
+            });
         });
         actions.append(button);
     });
     menu.append(actions);
 
+    return menu;
+}
+
+function createSectionInsertionControl(insertionIndex) {
+    const menu = document.createElement("details");
+    menu.className = "article-section__new-section-menu";
+
+    const toggle = document.createElement("summary");
+    toggle.className = "article-section__new-section-button";
+    toggle.setAttribute("title", "Add content between sections");
+    toggle.setAttribute("aria-label", "Add content between sections");
+    toggle.textContent = "+";
+    menu.append(toggle);
+
+    const actions = document.createElement("div");
+    actions.className = "article-section__new-section-actions";
+    const addAction = (label, iconText, iconClass, handler) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        const icon = document.createElement("span");
+        icon.className = `block-builder__insert-icon ${iconClass}`;
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = iconText;
+        const text = document.createElement("span");
+        text.textContent = label;
+        button.append(icon, text);
+        button.addEventListener("click", () => {
+            menu.open = false;
+            handler();
+        });
+        actions.append(button);
+    };
+
+    addAction("Add new section", "+", "block-builder__insert-icon--heading", () => {
+        const heading = { ...blockDefaults.heading };
+        const paragraph = { ...blockDefaults.paragraph };
+
+        applyContentMutation(() => {
+            // A section always begins with a heading and includes a first paragraph
+            // so it has its own editable area immediately after it is created.
+            contentBlocks.splice(insertionIndex, 0, heading, paragraph);
+            editingSectionHeadingBlocks.add(heading);
+            sectionStartHeadings.add(heading);
+        });
+    });
+
+    [
+        ["Add image", "image"],
+        ["Add quote", "quote"],
+        ["Add video", "youtube"],
+        ["Add call to action", "cta"]
+    ].forEach(([label, type]) => {
+        addAction(label, blockPresentation[type].icon, `block-builder__insert-icon--${type}`, () => {
+            applyContentMutation(() => {
+                const block = { ...blockDefaults[type] };
+                contentBlocks.splice(insertionIndex, 0, block);
+                standaloneBetweenSectionBlocks.add(block);
+            });
+        });
+    });
+
+    menu.append(actions);
     return menu;
 }
 
@@ -403,7 +687,7 @@ function chooseImageFileForBlock(block) {
     input.click();
 }
 
-function createBlockSettingsMenu(block, index, editor, typePicker) {
+function createBlockSettingsMenu(block, index, editor) {
     const menu = document.createElement("details");
     menu.className = "block-builder__settings";
 
@@ -414,12 +698,14 @@ function createBlockSettingsMenu(block, index, editor, typePicker) {
 
     const actions = document.createElement("div");
     actions.className = "block-builder__settings-actions";
-    const addAction = (label, handler) => {
+    const addAction = (label, handler, shouldClose = true) => {
         const button = document.createElement("button");
         button.type = "button";
         button.textContent = label;
         button.addEventListener("click", () => {
-            menu.open = false;
+            if (shouldClose) {
+                menu.open = false;
+            }
             handler();
         });
         actions.append(button);
@@ -429,20 +715,39 @@ function createBlockSettingsMenu(block, index, editor, typePicker) {
         addAction("Change image", () => chooseImageFileForBlock(block));
     }
 
+    const typeOptions = document.createElement("div");
+    typeOptions.className = "block-builder__settings-type-options";
+    typeOptions.hidden = true;
+    Object.entries(blockPresentation).forEach(([type, presentation]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = presentation.label;
+        button.disabled = type === block.type;
+        button.addEventListener("click", () => changeBlockType(block, type));
+        typeOptions.append(button);
+    });
+
     addAction("Change element", () => {
-        const toggle = typePicker.querySelector(".block-builder__icon");
-        const options = typePicker.querySelector(".block-builder__type-picker-options");
-        options.hidden = false;
-        toggle.setAttribute("aria-expanded", "true");
-        toggle.focus();
-    });
-    addAction("Edit", () => {
-        editor.open = true;
-        editor.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    });
+        typeOptions.hidden = !typeOptions.hidden;
+    }, false);
+    actions.append(typeOptions);
+
+    if (!["heading", "paragraph"].includes(block.type)) {
+        addAction("Edit", () => {
+            editor.open = true;
+            editor.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+    }
     addAction("Remove", () => {
-        contentBlocks.splice(index, 1);
-        renderContentBlocks();
+        applyContentMutation(() => {
+            contentBlocks.splice(index, 1);
+        });
+    });
+
+    menu.addEventListener("toggle", () => {
+        if (!menu.open) {
+            typeOptions.hidden = true;
+        }
     });
 
     menu.append(actions);
@@ -475,6 +780,187 @@ function createEmptyBlockState() {
     return emptyState;
 }
 
+function setArticleSectionEditing(section, editButton, headingBlock, isEditing, shouldFocus = false) {
+    section.classList.toggle("is-editing", isEditing);
+    editButton.textContent = isEditing ? "Done editing" : "Edit section";
+
+    if (!isEditing) {
+        editingSectionHeadingBlocks.delete(headingBlock);
+        return;
+    }
+
+    editingSectionHeadingBlocks.add(headingBlock);
+    section.querySelectorAll(".block-builder__editor").forEach((editor) => {
+        if (editor.matches("details")) {
+            editor.open = true;
+        }
+    });
+
+    if (shouldFocus) {
+        const firstField = section.querySelector(".block-builder__input");
+        firstField?.focus({ preventScroll: true });
+    }
+}
+
+function toggleArticleSectionEditor(section, editButton, headingBlock) {
+    setArticleSectionEditing(
+        section,
+        editButton,
+        headingBlock,
+        !section.classList.contains("is-editing"),
+        true
+    );
+}
+
+function groupHeadingSections() {
+    let activeSection = null;
+
+    const createArticleSection = (anchorBlock, firstBlockElement, beforeSectionControl = null) => {
+        const section = document.createElement("section");
+        section.className = "article-section";
+        section.headingBlock = anchorBlock;
+
+        const header = document.createElement("div");
+        header.className = "article-section__header";
+        const title = document.createElement("p");
+        title.className = "article-section__label";
+        title.textContent = "Article section";
+        const headerActions = document.createElement("div");
+        headerActions.className = "article-section__header-actions";
+        const dragHandle = document.createElement("button");
+        dragHandle.className = "article-section__drag-handle";
+        dragHandle.type = "button";
+        dragHandle.draggable = true;
+        dragHandle.textContent = "⠿";
+        dragHandle.setAttribute("title", "Drag entire article section");
+        dragHandle.setAttribute("aria-label", "Drag entire article section");
+        dragHandle.addEventListener("dragstart", (event) => {
+            const blockIndexes = [...section.querySelectorAll(".block-builder__block")]
+                .map((blockElement) => Number(blockElement.dataset.blockIndex));
+
+            if (!blockIndexes.length) {
+                event.preventDefault();
+                return;
+            }
+
+            draggedSectionBlockIndexes = blockIndexes;
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", "article-section");
+            section.classList.add("is-dragging");
+        });
+        dragHandle.addEventListener("dragend", () => {
+            draggedSectionBlockIndexes = null;
+            section.classList.remove("is-dragging");
+            contentBlockList.querySelectorAll(".is-dragging-over").forEach((element) => {
+                setDropZoneState(element);
+            });
+        });
+        const editButton = document.createElement("button");
+        editButton.className = "article-section__edit-button";
+        editButton.type = "button";
+        editButton.textContent = "Edit section";
+        editButton.addEventListener("click", () => {
+            toggleArticleSectionEditor(section, editButton, anchorBlock);
+        });
+        headerActions.append(dragHandle, editButton);
+        header.append(title, headerActions);
+
+        contentBlockList.insertBefore(section, firstBlockElement);
+        if (beforeSectionControl) {
+            contentBlockList.insertBefore(beforeSectionControl, section);
+        }
+        section.append(header, firstBlockElement);
+
+        if (editingSectionHeadingBlocks.has(anchorBlock)) {
+            setArticleSectionEditing(section, editButton, anchorBlock, true);
+        }
+
+        return section;
+    };
+
+    [...contentBlockList.children].forEach((element) => {
+        const isBlock = element.classList.contains("block-builder__block");
+        const block = isBlock
+            ? contentBlocks[Number(element.dataset.blockIndex)]
+            : null;
+        const isHeading = block?.type === "heading" && sectionStartHeadings.has(block);
+
+        if (isHeading) {
+            const headingBlock = block;
+            let betweenSectionsControl = null;
+
+            if (activeSection) {
+                // This is deliberately not an inline block picker. It creates a
+                // complete article section between the two existing sections.
+                betweenSectionsControl = createSectionInsertionControl(
+                    Number(element.dataset.blockIndex)
+                );
+            }
+
+            activeSection = createArticleSection(
+                headingBlock,
+                element,
+                betweenSectionsControl
+            );
+            return;
+        }
+
+        // An imported article can start with paragraphs after its title and SEO
+        // summary. Keep those body blocks together in their own section instead
+        // of leaving them as ungrouped legacy-style blocks.
+        if (isBlock && !activeSection) {
+            activeSection = createArticleSection(block, element);
+            return;
+        }
+
+        // Content added from the between-section menu remains a standalone block
+        // between cards. It is never absorbed by the preceding article section.
+        if (isBlock && standaloneBetweenSectionBlocks.has(block)) {
+            return;
+        }
+
+        if (activeSection && isBlock) {
+            activeSection.append(element);
+            return;
+        }
+    });
+
+    contentBlockList.querySelectorAll(".article-section").forEach((section) => {
+        section.querySelectorAll(".block-builder__block--inline-text").forEach((blockElement) => {
+            const dragControl = blockElement.querySelector(".block-builder__drag-control");
+
+            if (!dragControl) {
+                return;
+            }
+
+            const addContentMenu = createInlineBlockInsertionMenu(
+                contentBlocks[Number(blockElement.dataset.blockIndex)]
+            );
+            addContentMenu.classList.add("block-builder__input-add-content");
+            const summary = addContentMenu.querySelector("summary");
+            summary.setAttribute("aria-label", "Add content after this block");
+            summary.setAttribute("title", "Add content after this block");
+            dragControl.append(addContentMenu);
+        });
+    });
+}
+
+document.addEventListener("click", (event) => {
+    const editingSection = document.querySelector(".article-section.is-editing");
+
+    if (!editingSection || editingSection.contains(event.target)) {
+        return;
+    }
+
+    const editButton = editingSection.querySelector(".article-section__edit-button");
+    setArticleSectionEditing(
+        editingSection,
+        editButton,
+        editingSection.headingBlock,
+        false
+    );
+}, true);
+
 function renderContentBlocks() {
     const isEmpty = contentBlocks.length === 0;
     postForm.classList.toggle("post-editor-layout--starter", isEmpty);
@@ -490,14 +976,22 @@ function renderContentBlocks() {
         const blockElement = document.createElement("section");
         blockElement.className = `block-builder__block block-builder__block--${block.type}`;
         blockElement.dataset.blockIndex = index;
+        const isInlineTextBlock = ["heading", "paragraph"].includes(block.type);
+
+        if (isInlineTextBlock) {
+            blockElement.classList.add("block-builder__block--inline-text");
+        }
 
         const header = document.createElement("div");
         header.className = "block-builder__block-header";
 
         const identity = document.createElement("div");
         identity.className = "block-builder__identity";
-        const dragHandle = document.createElement("span");
+        const dragControl = document.createElement("div");
+        dragControl.className = "block-builder__drag-control";
+        const dragHandle = document.createElement("button");
         dragHandle.className = "block-builder__drag-handle";
+        dragHandle.type = "button";
         dragHandle.textContent = "⠿";
         dragHandle.draggable = true;
         dragHandle.setAttribute("title", "Drag to reorder block");
@@ -512,7 +1006,7 @@ function renderContentBlocks() {
             draggedBlockIndex = null;
             blockElement.classList.remove("is-dragging");
             contentBlockList.querySelectorAll(".is-dragging-over").forEach((element) => {
-                element.classList.remove("is-dragging-over");
+                setDropZoneState(element);
             });
         });
         const typePicker = createBlockTypePicker(block);
@@ -523,7 +1017,8 @@ function renderContentBlocks() {
         preview.className = "block-builder__preview";
         preview.textContent = getBlockPreview(block);
         details.append(title, preview);
-        identity.append(dragHandle, typePicker, details);
+        dragControl.append(dragHandle);
+        identity.append(dragControl, typePicker, details);
         header.append(identity);
 
         const controls = document.createElement("div");
@@ -531,23 +1026,26 @@ function renderContentBlocks() {
         [
             ["↑", "Move block up", index === 0, () => {
                 if (index > 0) {
-                    [contentBlocks[index - 1], contentBlocks[index]] = [
-                        contentBlocks[index], contentBlocks[index - 1]
-                    ];
-                    renderContentBlocks();
+                    applyContentMutation(() => {
+                        [contentBlocks[index - 1], contentBlocks[index]] = [
+                            contentBlocks[index], contentBlocks[index - 1]
+                        ];
+                    });
                 }
             }],
             ["↓", "Move block down", index === contentBlocks.length - 1, () => {
                 if (index < contentBlocks.length - 1) {
-                    [contentBlocks[index], contentBlocks[index + 1]] = [
-                        contentBlocks[index + 1], contentBlocks[index]
-                    ];
-                    renderContentBlocks();
+                    applyContentMutation(() => {
+                        [contentBlocks[index], contentBlocks[index + 1]] = [
+                            contentBlocks[index + 1], contentBlocks[index]
+                        ];
+                    });
                 }
             }],
             ["🗑", "Delete block", false, () => {
-                contentBlocks.splice(index, 1);
-                renderContentBlocks();
+                applyContentMutation(() => {
+                    contentBlocks.splice(index, 1);
+                });
             }]
         ].forEach(([label, ariaLabel, disabled, handler]) => {
             const button = document.createElement("button");
@@ -573,12 +1071,14 @@ function renderContentBlocks() {
             blockElement.append(blockBody);
         }
 
-        const editor = document.createElement("details");
+        const editor = document.createElement(isInlineTextBlock ? "div" : "details");
         editor.className = "block-builder__editor";
-        editor.open = !block.text && !block.url;
-        const editorSummary = document.createElement("summary");
-        editorSummary.textContent = "Edit block";
-        editor.append(editorSummary);
+        if (!isInlineTextBlock) {
+            editor.open = !block.text && !block.url;
+            const editorSummary = document.createElement("summary");
+            editorSummary.textContent = "Edit block";
+            editor.append(editorSummary);
+        }
 
         if (["heading", "paragraph", "quote"].includes(block.type)) {
             editor.append(createBlockField(
@@ -598,61 +1098,106 @@ function renderContentBlocks() {
         }
 
         blockElement.append(editor);
-        controls.append(createBlockSettingsMenu(block, index, editor, typePicker));
+        const settingsMenu = createBlockSettingsMenu(block, index, editor);
+        controls.append(settingsMenu);
 
-        return index === contentBlocks.length - 1
-            ? [blockElement]
-            : [blockElement, createInsertionMenu(index + 1)];
+        if (isInlineTextBlock) {
+            blockElement.addEventListener("click", (event) => {
+                if (event.target.closest("input, textarea, button, summary, .block-builder__settings")) {
+                    return;
+                }
+
+                settingsMenu.open = true;
+            });
+        }
+
+        return [blockElement];
     }));
+    groupHeadingSections();
     renderPostPreview(getPostData());
 }
 
 ["dragenter", "dragover"].forEach((eventName) => {
     contentBlockList.addEventListener(eventName, (event) => {
+        const sectionTarget = getArticleSectionDropTarget(event);
         const blockElement = event.target.closest(".block-builder__block");
-        if (!blockElement || draggedBlockIndex === null) {
+        const isDraggingSection = Array.isArray(draggedSectionBlockIndexes);
+        if (
+            (!sectionTarget && !blockElement)
+            || (!isDraggingSection && draggedBlockIndex === null)
+            || (isDraggingSection && !sectionTarget)
+        ) {
             return;
         }
 
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
-        setDropZoneState(blockElement, true);
+        if (sectionTarget) {
+            const { placement } = getSectionDropPlacement(
+                sectionTarget.section,
+                sectionTarget.placement
+            );
+            setDropZoneState(sectionTarget.section, placement);
+            return;
+        }
+
+        const { placement } = getBlockDropPlacement(blockElement, event.clientY);
+        setDropZoneState(blockElement, placement);
     });
 });
 
 contentBlockList.addEventListener("dragleave", (event) => {
+    const section = event.target.closest(".article-section");
+    if (section && !section.contains(event.relatedTarget)) {
+        setDropZoneState(section);
+    }
+
     const blockElement = event.target.closest(".block-builder__block");
     if (blockElement && !blockElement.contains(event.relatedTarget)) {
-        setDropZoneState(blockElement, false);
+        setDropZoneState(blockElement);
     }
 });
 
 contentBlockList.addEventListener("drop", (event) => {
+    const sectionTarget = getArticleSectionDropTarget(event);
     const blockElement = event.target.closest(".block-builder__block");
-    if (!blockElement || draggedBlockIndex === null) {
+    const isDraggingSection = Array.isArray(draggedSectionBlockIndexes);
+    if (
+        (!sectionTarget && !blockElement)
+        || (!isDraggingSection && draggedBlockIndex === null)
+        || (isDraggingSection && !sectionTarget)
+    ) {
         return;
     }
 
     event.preventDefault();
-    const targetIndex = Number(blockElement.dataset.blockIndex);
-    const insertAfter = event.clientY > (
-        blockElement.getBoundingClientRect().top + blockElement.offsetHeight / 2
-    );
-    let destinationIndex = targetIndex + (insertAfter ? 1 : 0);
+    const { destinationIndex } = sectionTarget
+        ? getSectionDropPlacement(sectionTarget.section, sectionTarget.placement)
+        : getBlockDropPlacement(blockElement, event.clientY);
 
-    if (draggedBlockIndex < destinationIndex) {
-        destinationIndex -= 1;
+    if (isDraggingSection) {
+        moveSection(draggedSectionBlockIndexes, destinationIndex);
+    } else {
+        moveBlock(draggedBlockIndex, destinationIndex);
     }
-
-    moveBlock(draggedBlockIndex, destinationIndex);
     draggedBlockIndex = null;
+    draggedSectionBlockIndexes = null;
 });
 
 addBlockButtons.forEach((button) => {
     button.addEventListener("click", () => {
-        contentBlocks.push({ ...blockDefaults[button.dataset.addBlock] });
+        applyContentMutation(() => {
+            const newBlock = { ...blockDefaults[button.dataset.addBlock] };
+            contentBlocks.push(newBlock);
+
+            if (
+                newBlock.type === "heading"
+                && !contentBlocks.some((block) => sectionStartHeadings.has(block))
+            ) {
+                sectionStartHeadings.add(newBlock);
+            }
+        });
         button.closest(".block-builder__add-menu").open = false;
-        renderContentBlocks();
     });
 });
 
@@ -680,6 +1225,378 @@ function getPostData(status = "draft") {
                 ? new Date().toISOString()
                 : null
     };
+}
+
+function getBlockIndexes(blockSet) {
+    return contentBlocks.reduce((indexes, block, index) => {
+        if (blockSet.has(block)) {
+            indexes.push(index);
+        }
+        return indexes;
+    }, []);
+}
+
+function captureAiEditorState() {
+    return {
+        post: getPostData(),
+        sectionStartBlockIndexes: getBlockIndexes(sectionStartHeadings),
+        standaloneBlockIndexes: getBlockIndexes(standaloneBetweenSectionBlocks),
+        editingHeadingBlockIndexes: getBlockIndexes(editingSectionHeadingBlocks)
+    };
+}
+
+function restoreAiEditorState(editorState) {
+    populatePostForm(editorState.post);
+    sectionStartHeadings = new WeakSet();
+    standaloneBetweenSectionBlocks = new WeakSet();
+    editingSectionHeadingBlocks.clear();
+
+    editorState.sectionStartBlockIndexes.forEach((index) => {
+        if (contentBlocks[index]) {
+            sectionStartHeadings.add(contentBlocks[index]);
+        }
+    });
+    editorState.standaloneBlockIndexes.forEach((index) => {
+        if (contentBlocks[index]) {
+            standaloneBetweenSectionBlocks.add(contentBlocks[index]);
+        }
+    });
+    editorState.editingHeadingBlockIndexes.forEach((index) => {
+        if (contentBlocks[index]) {
+            editingSectionHeadingBlocks.add(contentBlocks[index]);
+        }
+    });
+
+    renderContentBlocks();
+    renderArticleDetails();
+    renderPostPreview(getPostData());
+}
+
+function showAiAssistantStatus(message, canUndo = false) {
+    aiAssistantStatus.hidden = false;
+    aiAssistantStatusMessage.textContent = message;
+    undoAiAssistantButton.hidden = !canUndo;
+}
+
+function createAiDrawerElement(tagName, className, text) {
+    const element = document.createElement(tagName);
+    if (className) {
+        element.className = className;
+    }
+    if (text) {
+        element.textContent = text;
+    }
+    return element;
+}
+
+function createAiDrawerButton(label, action, accent = false) {
+    const button = createAiDrawerElement("button", "aiced-bot-panel__workflow-button", label);
+    button.type = "button";
+    button.dataset.aicedBotDrawerAction = action;
+    if (accent) {
+        button.classList.add("aiced-bot-panel__workflow-button--accent");
+    }
+    return button;
+}
+
+function setAiDrawerScreen(mode, content) {
+    aiDrawerState = {...aiDrawerState, mode};
+    const isIdle = mode === "idle";
+
+    aicedBotIdleContent.hidden = !isIdle;
+    aicedBotWorkflowContent.hidden = isIdle;
+    aicedBotPanelComposer.hidden = !isIdle;
+
+    if (isIdle) {
+        aicedBotWorkflowContent.replaceChildren();
+        return;
+    }
+
+    aicedBotWorkflowContent.replaceChildren(...content);
+}
+
+function showAiIdle() {
+    aiDrawerState = {mode: "idle", beforeState: null, afterState: null};
+    setAiDrawerScreen("idle", []);
+}
+
+function getBlockText(block) {
+    return block?.text || block?.url || "";
+}
+
+function getBlockLabel(block) {
+    const label = block?.type || "content";
+    return `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
+}
+
+function haveSameTextList(first, second) {
+    return first.length === second.length && first.every((item, index) => item === second[index]);
+}
+
+function getAiChangeSummary(beforeState, afterState) {
+    const before = beforeState.post;
+    const after = afterState.post;
+    const fieldChanges = [];
+
+    [
+        ["Title", before.title, after.title],
+        ["SEO summary", before.excerpt, after.excerpt],
+        ["Category", before.category, after.category]
+    ].forEach(([label, beforeValue, afterValue]) => {
+        if (beforeValue !== afterValue) {
+            fieldChanges.push({label, before: beforeValue, after: afterValue});
+        }
+    });
+
+    if (!haveSameTextList(before.tags, after.tags)) {
+        fieldChanges.push({
+            label: "Tags",
+            before: before.tags.join(", "),
+            after: after.tags.join(", ")
+        });
+    }
+
+    const blockChanges = [];
+    const changedBlockCounts = {heading: 0, paragraph: 0, quote: 0};
+    const maximumBlockLength = Math.max(before.contentBlocks.length, after.contentBlocks.length);
+
+    for (let index = 0; index < maximumBlockLength; index += 1) {
+        const beforeBlock = before.contentBlocks[index];
+        const afterBlock = after.contentBlocks[index];
+        const isChanged = beforeBlock?.type !== afterBlock?.type
+            || getBlockText(beforeBlock) !== getBlockText(afterBlock);
+
+        if (!isChanged) {
+            continue;
+        }
+
+        const blockType = afterBlock?.type || beforeBlock?.type;
+        if (Object.hasOwn(changedBlockCounts, blockType)) {
+            changedBlockCounts[blockType] += 1;
+        }
+        blockChanges.push({
+            index,
+            label: getBlockLabel(afterBlock || beforeBlock),
+            before: getBlockText(beforeBlock),
+            after: getBlockText(afterBlock)
+        });
+    }
+
+    const blockCountChanges = ["heading", "paragraph", "quote"].flatMap((type) => {
+        const beforeCount = before.contentBlocks.filter((block) => block.type === type).length;
+        const afterCount = after.contentBlocks.filter((block) => block.type === type).length;
+        return beforeCount === afterCount
+            ? []
+            : [{label: `${getBlockLabel({type})} blocks`, before: beforeCount, after: afterCount}];
+    });
+
+    return {fieldChanges, blockChanges, blockCountChanges, changedBlockCounts};
+}
+
+function showAiProcessing(beforeState) {
+    const image = document.createElement("img");
+    image.className = "aiced-bot-panel__workflow-bot";
+    image.src = "/static/images/aicedbotrunning.png";
+    image.alt = "Aiced Bot is working";
+
+    const title = createAiDrawerElement("h2", "aiced-bot-panel__workflow-title", "Improving SEO...");
+    const description = createAiDrawerElement(
+        "p",
+        "aiced-bot-panel__workflow-description",
+        "Aiced Bot is reviewing your article for search clarity."
+    );
+    const label = createAiDrawerElement("p", "aiced-bot-panel__workflow-label", "Analyzing:");
+    const list = createAiDrawerElement("ul", "aiced-bot-panel__workflow-list");
+    ["Title", "SEO summary", "Headings", "Keyword clarity"].forEach((item) => {
+        list.append(createAiDrawerElement("li", "", item));
+    });
+
+    aiDrawerState = {mode: "processing", beforeState, afterState: null};
+    setAiDrawerScreen("processing", [image, title, description, label, list]);
+}
+
+function getSuccessSummaryItems(summary) {
+    const items = [
+        ...summary.fieldChanges.map((change) => change.label),
+        ...summary.blockCountChanges.map((change) => `${change.label} (${change.before} → ${change.after})`),
+        ...Object.entries(summary.changedBlockCounts)
+            .filter(([, count]) => count > 0)
+            .map(([type, count]) => `${count} ${type} block${count === 1 ? "" : "s"} updated`)
+    ];
+
+    return items.length ? items : ["Search clarity refinements"];
+}
+
+function showAiSuccess(beforeState, afterState) {
+    const summary = getAiChangeSummary(beforeState, afterState);
+    const title = createAiDrawerElement("h2", "aiced-bot-panel__workflow-title", "SEO improved");
+    const description = createAiDrawerElement(
+        "p",
+        "aiced-bot-panel__workflow-description",
+        "Your editor has been updated. Review the changes before publishing."
+    );
+    const label = createAiDrawerElement("p", "aiced-bot-panel__workflow-label", "I updated:");
+    const list = createAiDrawerElement("ul", "aiced-bot-panel__workflow-list");
+    getSuccessSummaryItems(summary).forEach((item) => {
+        list.append(createAiDrawerElement("li", "", item));
+    });
+    const actions = createAiDrawerElement("div", "aiced-bot-panel__workflow-actions");
+    actions.append(
+        createAiDrawerButton("Review changes", "review", true),
+        createAiDrawerButton("Undo", "undo")
+    );
+
+    aiDrawerState = {mode: "success", beforeState, afterState, summary};
+    setAiDrawerScreen("success", [title, description, label, list, actions]);
+}
+
+function createAiReviewItem(label, beforeValue, afterValue) {
+    const item = createAiDrawerElement("section", "aiced-bot-panel__review-item");
+    item.append(createAiDrawerElement("h3", "", label));
+
+    const before = createAiDrawerElement("div", "aiced-bot-panel__review-value");
+    before.append(createAiDrawerElement("strong", "", "Before"));
+    before.append(createAiDrawerElement("p", "", beforeValue || "—"));
+
+    const after = createAiDrawerElement("div", "aiced-bot-panel__review-value");
+    after.append(createAiDrawerElement("strong", "", "After"));
+    after.append(createAiDrawerElement("p", "", afterValue || "—"));
+    item.append(before, after);
+    return item;
+}
+
+function showAiReview() {
+    const {beforeState, afterState, summary} = aiDrawerState;
+    const title = createAiDrawerElement("h2", "aiced-bot-panel__workflow-title", "Review SEO changes");
+    const description = createAiDrawerElement(
+        "p",
+        "aiced-bot-panel__workflow-description",
+        "Only fields and content blocks that changed are shown."
+    );
+    const review = createAiDrawerElement("div", "aiced-bot-panel__review");
+
+    summary.fieldChanges.forEach((change) => {
+        review.append(createAiReviewItem(change.label, change.before, change.after));
+    });
+    summary.blockChanges.forEach((change) => {
+        review.append(createAiReviewItem(`${change.label} ${change.index + 1}`, change.before, change.after));
+    });
+
+    if (!review.childElementCount) {
+        review.append(createAiDrawerElement("p", "aiced-bot-panel__workflow-description", "No visible changes were returned."));
+    }
+
+    const actions = createAiDrawerElement("div", "aiced-bot-panel__workflow-actions");
+    actions.append(
+        createAiDrawerButton("Back", "success"),
+        createAiDrawerButton("Undo", "undo")
+    );
+    setAiDrawerScreen("review", [title, description, review, actions]);
+}
+
+function showAiError() {
+    const title = createAiDrawerElement("h2", "aiced-bot-panel__workflow-title", "Couldn't improve SEO");
+    const description = createAiDrawerElement(
+        "p",
+        "aiced-bot-panel__workflow-description",
+        "Your original article has not been changed."
+    );
+    const actions = createAiDrawerElement("div", "aiced-bot-panel__workflow-actions");
+    actions.append(
+        createAiDrawerButton("Try again", "retry", true),
+        createAiDrawerButton("Back", "idle")
+    );
+    setAiDrawerScreen("error", [title, description, actions]);
+}
+
+function showAiUndoComplete() {
+    const title = createAiDrawerElement("h2", "aiced-bot-panel__workflow-title", "Changes undone");
+    const description = createAiDrawerElement(
+        "p",
+        "aiced-bot-panel__workflow-description",
+        "Your original article has been restored."
+    );
+    const actions = createAiDrawerElement("div", "aiced-bot-panel__workflow-actions");
+    actions.append(createAiDrawerButton("Back to actions", "idle", true));
+    setAiDrawerScreen("undone", [title, description, actions]);
+}
+
+function undoAiChanges() {
+    if (!aiUndoState) {
+        return;
+    }
+
+    restoreAiEditorState(aiUndoState);
+    aiUndoState = null;
+    setAicedBotPanelOpen(true);
+    showAiUndoComplete();
+    showAiAssistantStatus("SEO changes undone");
+    showPublishingStatus("SEO changes undone.");
+}
+
+async function improveSeo() {
+    if (isAiEditProcessing) {
+        return;
+    }
+
+    const editorState = captureAiEditorState();
+    const { title, excerpt, category, tags, contentBlocks } = editorState.post;
+    const requestBody = {
+        action: "seo",
+        title,
+        excerpt,
+        category,
+        tags,
+        contentBlocks
+    };
+
+    isAiEditProcessing = true;
+    setAicedBotPanelOpen(true);
+    showAiProcessing(editorState);
+    improveSeoButton.disabled = true;
+    improveSeoButton.classList.add("is-loading");
+    showAiAssistantStatus("Aiced Bot is improving SEO...");
+    showPublishingStatus("Aiced Bot is improving SEO...");
+
+    try {
+        const response = await fetch("/api/posts/ai-edit", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(requestBody)
+        });
+        const result = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(result.message || "AI could not improve SEO right now.");
+        }
+
+        if (!Array.isArray(result.contentBlocks) || !result.title || !result.excerpt) {
+            throw new Error("AI returned an unusable result.");
+        }
+
+        aiUndoState = editorState;
+        populatePostForm({
+            ...result,
+            featuredImage: editorState.post.featuredImage
+        });
+        const afterState = captureAiEditorState();
+        showAiSuccess(editorState, afterState);
+        showAiAssistantStatus("SEO improved", true);
+        showPublishingStatus("SEO improved. Review the changes before publishing.");
+    } catch (error) {
+        const message = error instanceof TypeError
+            ? "Network error. Check your connection and try again."
+            : "Aiced Bot could not improve SEO right now.";
+        showAiError();
+        showAiAssistantStatus(message);
+        showPublishingStatus(message);
+        console.error("Unable to improve SEO:", error);
+    } finally {
+        isAiEditProcessing = false;
+        improveSeoButton.disabled = false;
+        improveSeoButton.classList.remove("is-loading");
+    }
 }
 
 function readImageFile(file) {
@@ -712,26 +1629,16 @@ function renderPostPreview(post) {
         post.excerpt || "Add the description and info of the post";
     previewCategory.textContent = getCategoryLabel(post.category);
     previewImage.hidden = !post.featuredImage;
+    previewImageButton.hidden = !post.featuredImage;
     previewNoImage.hidden = Boolean(post.featuredImage);
+    removeThumbnailButton.hidden = !post.featuredImage;
+    featuredImageDropZone.classList.toggle("is-empty", !post.featuredImage);
     if (post.featuredImage) {
         previewImage.src = post.featuredImage;
     } else {
         previewImage.removeAttribute("src");
     }
-    renderThumbnailPreview(post.featuredImage);
     renderContentPreview(post.contentBlocks);
-}
-
-function renderThumbnailPreview(imageSource) {
-    const hasThumbnail = Boolean(imageSource);
-    thumbnailPreview.hidden = !hasThumbnail;
-
-    if (!hasThumbnail) {
-        thumbnailPreviewImage.removeAttribute("src");
-        return;
-    }
-
-    thumbnailPreviewImage.src = imageSource;
 }
 
 function renderContentPreview(blocks) {
@@ -790,10 +1697,14 @@ function populatePostForm(post) {
     postForm.querySelector("#post-excerpt").value = post.excerpt || "";
 
     featuredImageDataUrl = post.featuredImage || null;
+    editingSectionHeadingBlocks.clear();
+    resetStandaloneBetweenSectionBlocks();
     contentBlocks = Array.isArray(post.contentBlocks)
         ? post.contentBlocks.map((block) => ({ ...block }))
         : [];
+    markExistingHeadingsAsSectionStarts();
     renderContentBlocks();
+    renderArticleDetails();
     renderPostPreview(post);
 }
 
@@ -821,6 +1732,13 @@ function saveDraft() {
 
 async function publishPost() {
     if (isPublishing || !postForm.reportValidity()) {
+        return;
+    }
+
+    if (!featuredImageDataUrl && !window.confirm(
+        "Are you sure you want to publish without a cover photo?"
+    )) {
+        showPublishingStatus("Add a cover photo whenever you are ready, then publish.");
         return;
     }
 
@@ -908,6 +1826,25 @@ featuredImageInput.addEventListener("change", (event) => {
     }
 });
 
+function openFeaturedImagePicker(event) {
+    if (
+        event.target === featuredImageInput
+        || event.target.closest("#view-thumbnail-button, #remove-thumbnail-button")
+    ) {
+        return;
+    }
+
+    featuredImageInput.click();
+}
+
+featuredImageDropZone.addEventListener("click", openFeaturedImagePicker);
+featuredImageDropZone.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openFeaturedImagePicker(event);
+    }
+});
+
 ["dragenter", "dragover"].forEach((eventName) => {
     featuredImageDropZone.addEventListener(eventName, (event) => {
         event.preventDefault();
@@ -959,15 +1896,6 @@ confirmThumbnailRemoveButton.addEventListener("click", () => {
 });
 
 previewButton.addEventListener("click", () => {
-    const post = getPostData("draft");
-    renderPostPreview(post);
-    document.querySelector("#post-preview").scrollIntoView({
-        behavior: "smooth",
-        block: "center"
-    });
-});
-
-openFullPreviewButton.addEventListener("click", () => {
     renderFullPostPreview();
     fullPreviewDialog.showModal();
 });
@@ -988,6 +1916,7 @@ fullPreviewDialog.addEventListener("click", (event) => {
     "#post-tags"
 ].forEach((selector) => {
     postForm.querySelector(selector).addEventListener("input", () => {
+        renderArticleDetails();
         renderPostPreview(getPostData());
     });
 });
@@ -998,8 +1927,79 @@ postForm.querySelector("#post-category").addEventListener("change", () => {
 
 saveDraftButton.addEventListener("click", saveDraft);
 publishPostButton.addEventListener("click", publishPost);
+articleDetailsEditButton.addEventListener("click", toggleArticleDetailsEditor);
+improveSeoButton.addEventListener("click", improveSeo);
+undoAiAssistantButton.addEventListener("click", undoAiChanges);
+
+aicedBotPanelBody.addEventListener("click", (event) => {
+    const idleAction = event.target.closest('[data-aiced-bot-action="improve_seo"]');
+    if (idleAction) {
+        improveSeo();
+        return;
+    }
+
+    const actionButton = event.target.closest("[data-aiced-bot-drawer-action]");
+    if (!actionButton) {
+        return;
+    }
+
+    switch (actionButton.dataset.aicedBotDrawerAction) {
+        case "review":
+            showAiReview();
+            break;
+        case "success":
+            showAiSuccess(aiDrawerState.beforeState, aiDrawerState.afterState);
+            break;
+        case "undo":
+            undoAiChanges();
+            break;
+        case "retry":
+            improveSeo();
+            break;
+        case "idle":
+            showAiIdle();
+            break;
+        default:
+            break;
+    }
+});
+
+aicedBotLauncher.addEventListener("click", () => {
+    setAicedBotPanelOpen(aicedBotPanelBackdrop.hidden);
+});
+
+closeAicedBotPanelButton.addEventListener("click", () => {
+    setAicedBotPanelOpen(false);
+});
+
+aiAssistantCardToggleButton.addEventListener("click", () => {
+    const isExpanded = aiAssistantCardToggleButton.getAttribute("aria-expanded") === "true";
+
+    aiAssistantCardToggleButton.setAttribute("aria-expanded", String(!isExpanded));
+    aiAssistantCardToggleButton.setAttribute(
+        "aria-label",
+        isExpanded ? "Expand Aiced Bot panel" : "Collapse Aiced Bot panel"
+    );
+    aiAssistantCardToggleButton.title = isExpanded
+        ? "Expand Aiced Bot panel"
+        : "Collapse Aiced Bot panel";
+    aiAssistantCardContent.hidden = isExpanded;
+});
+
+aicedBotPanelBackdrop.addEventListener("click", (event) => {
+    if (event.target === aicedBotPanelBackdrop) {
+        setAicedBotPanelOpen(false);
+    }
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !aicedBotPanelBackdrop.hidden) {
+        setAicedBotPanelOpen(false);
+    }
+});
 
 renderContentBlocks();
+renderArticleDetails();
 
 const builderQuery = new URLSearchParams(window.location.search);
 
@@ -1008,6 +2008,8 @@ if (["pasted", "enhanced"].includes(builderQuery.get("import"))) {
 
     try {
         const postImport = JSON.parse(storedPostImport || "{}");
+        editingSectionHeadingBlocks.clear();
+        resetStandaloneBetweenSectionBlocks();
         contentBlocks = Array.isArray(postImport.contentBlocks)
             ? postImport.contentBlocks.filter((block) => (
                 ["heading", "paragraph", "quote"].includes(block.type)
@@ -1015,6 +2017,7 @@ if (["pasted", "enhanced"].includes(builderQuery.get("import"))) {
                 && block.text.trim()
             ))
             : [];
+        markExistingHeadingsAsSectionStarts();
 
         postForm.querySelector("#post-title").value = typeof postImport.title === "string"
             ? postImport.title.slice(0, 100)
@@ -1031,6 +2034,7 @@ if (["pasted", "enhanced"].includes(builderQuery.get("import"))) {
         sessionStorage.removeItem("cmsPastedPostImport");
 
         renderContentBlocks();
+        renderArticleDetails();
         renderPostPreview(getPostData());
         showPublishingStatus("Your title, SEO summary, post details, and article blocks are ready to edit.");
     } catch (error) {
