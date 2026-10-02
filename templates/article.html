@@ -3,17 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#050b14">
-    <title>Article | Rise Dashboard</title>
+    <meta name="theme-color" content="#102b3f">
+    <title>Article | Inside the Market</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/public_site.css') }}">
     <script src="{{ url_for('static', filename='js/article.js') }}" defer></script>
 </head>
 <body>
-    <header class="app-header article-page__header">
-        <a class="article-page__back-link" href="{{ url_for('dashboard') }}">← Dashboard</a>
+    <header class="publication-header">
+        <a class="publication-mark" href="{{ url_for('public_home') }}">INSIDE <span>THE MARKET</span></a>
+        <a class="publication-header__link" href="{{ url_for('public_home') }}">All articles</a>
     </header>
 
     <main class="article-page" data-post-id="{{ post_id }}" id="main-content">
@@ -33,6 +34,7 @@
 
             <div class="article-detail__content" id="article-content"></div>
             <ul class="article-page__tags" id="article-tags" aria-label="Article tags"></ul>
+            <footer class="article-subscribe"><p class="eyebrow">Inside the Market</p><h2>Want more local perspective?</h2><p>Subscribe for Antelope Valley real estate insight.</p><a class="public-button" href="{{ url_for('public_home') }}#subscribe">Subscribe to updates</a></footer>
         </article>
     </main>
 </body>

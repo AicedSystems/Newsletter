@@ -108,7 +108,7 @@ function mapApiPostToFeedPost(post) {
         author: "Eric Cuss",
         publishedDate: post.publishedDate,
         displayDate: formatPublishedDate(post.publishedDate),
-        url: `/posts/${post.id}`
+        url: `/blog/${post.id}`
     };
 }
 

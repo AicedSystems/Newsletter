@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#050b14">
+    <title>Subscribers | Rise Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/subscribers.css') }}">
+    <script src="{{ url_for('static', filename='js/subscribers.js') }}" defer></script>
+</head>
+
+<body>
+    <header class="app-header">
+        <div class="theme-selector">
+            <label class="visually-hidden" for="theme-selector">Select color theme</label>
+            <select id="theme-selector" class="theme-selector__select">
+                <option value="midnight">Midnight Gold</option>
+                <option value="obsidian">Obsidian Silver</option>
+                <option value="sage">Sage Estate</option>
+            </select>
+        </div>
+        <nav class="top-navigation" aria-label="Main navigation">
+            <a class="subscribers-page__dashboard-link" href="{{ url_for('dashboard') }}">← Dashboard</a>
+        </nav>
+    </header>
+
+    <main class="subscribers-page" id="main-content">
+        <section class="subscribers-workspace" aria-labelledby="subscribers-title">
+            <header class="subscribers-workspace__header">
+                <div>
+                    <h1 id="subscribers-title">Subscribers</h1>
+                    <p>Manage the people who have opted in to receive your newsletter.</p>
+                </div>
+            </header>
+
+            <section class="subscriber-counts" aria-label="Subscriber counts">
+                <button class="subscriber-counts__item" type="button" data-status-count-filter="" aria-pressed="true"><span>Total</span><strong id="subscriber-count-total">0</strong></button>
+                <button class="subscriber-counts__item" type="button" data-status-count-filter="active" aria-pressed="false"><span>Active</span><strong id="subscriber-count-active">0</strong></button>
+                <button class="subscriber-counts__item" type="button" data-status-count-filter="unsubscribed" aria-pressed="false"><span>Removed from Mailing List</span><strong id="subscriber-count-unsubscribed">0</strong></button>
+                <button class="subscriber-counts__item" type="button" data-status-count-filter="suppressed" aria-pressed="false"><span>Blocked from Emails</span><strong id="subscriber-count-suppressed">0</strong></button>
+            </section>
+
+            <section class="subscriber-controls" aria-label="Subscriber controls">
+                <label class="visually-hidden" for="subscriber-search">Search subscribers</label>
+                <input id="subscriber-search" type="search" placeholder="Search name or email" autocomplete="off">
+                <label class="visually-hidden" for="subscriber-status-filter">Filter by status</label>
+                <select id="subscriber-status-filter">
+                    <option value="">All statuses</option>
+                    <option value="active">Active</option>
+                    <option value="unsubscribed">Removed from Mailing List</option>
+                    <option value="suppressed">Blocked from Emails</option>
+                </select>
+                <label class="visually-hidden" for="subscriber-tag-filter">Filter by tag</label>
+                <select id="subscriber-tag-filter"><option value="">All tags</option></select>
+                <button class="subscribers-button subscribers-button--accent" id="add-subscriber-button" type="button">Add subscriber</button>
+            </section>
+
+            <p class="subscriber-status-message" id="subscriber-status-message" aria-live="polite"></p>
+
+            <section class="subscriber-table-wrap" aria-labelledby="subscriber-list-title">
+                <h2 class="visually-hidden" id="subscriber-list-title">Subscriber list</h2>
+                <div class="subscriber-empty-state" id="subscriber-empty-state" hidden>
+                    <h2 id="subscriber-empty-state-title">No subscribers yet</h2>
+                    <p id="subscriber-empty-state-description">Add your first subscriber or import contacts to start building your audience.</p>
+                    <div>
+                        <button class="subscribers-button subscribers-button--accent" id="empty-add-subscriber-button" type="button">Add subscriber</button>
+                        <button class="subscribers-button" type="button" disabled title="CSV import is coming next.">Import CSV (coming next)</button>
+                    </div>
+                </div>
+                <table class="subscriber-table" id="subscriber-table">
+                    <thead>
+                        <tr><th>Name</th><th>Email</th><th>Tags</th><th>Status</th><th>Added</th><th><span class="visually-hidden">Actions</span></th></tr>
+                    </thead>
+                    <tbody id="subscriber-list"></tbody>
+                </table>
+            </section>
+        </section>
+    </main>
+
+    <dialog class="subscriber-dialog" id="subscriber-dialog" aria-labelledby="subscriber-dialog-title">
+        <form id="subscriber-form" novalidate>
+            <header class="subscriber-dialog__header">
+                <div>
+                    <h2 id="subscriber-dialog-title">Add subscriber</h2>
+                    <p id="subscriber-dialog-description">Add this contact and organize them with audience tags.</p>
+                </div>
+                <button class="subscriber-dialog__close" id="subscriber-dialog-close" type="button" aria-label="Close">×</button>
+            </header>
+            <input id="subscriber-id" type="hidden">
+            <div class="subscriber-form__names">
+                <label>First name<input id="subscriber-first-name" type="text" maxlength="100" autocomplete="given-name"></label>
+                <label>Last name<input id="subscriber-last-name" type="text" maxlength="100" autocomplete="family-name"></label>
+            </div>
+            <label class="subscriber-form__email">Email<input id="subscriber-email" type="email" maxlength="320" autocomplete="email" required></label>
+            <fieldset class="subscriber-tag-selector">
+                <div class="subscriber-tag-selector__heading">
+                    <div>
+                        <span class="subscriber-tag-selector__label">Tags</span>
+                        <p>Choose how this contact should be grouped.</p>
+                    </div>
+                    <button class="subscribers-button" id="show-create-tag-button" type="button">＋ Create New Tag</button>
+                </div>
+                <div class="subscriber-tag-selector__choices" id="subscriber-tag-choices"></div>
+                <button class="subscribers-button subscribers-button--danger" id="delete-selected-tag-button" type="button" disabled>Delete selected tag</button>
+                <div class="subscriber-tag-selector__create" id="create-tag-controls" hidden>
+                    <div class="subscriber-tag-selector__create-heading">
+                        <strong>Create a new tag</strong>
+                        <button id="close-create-tag-button" type="button" aria-label="Close new tag form">×</button>
+                    </div>
+                    <div class="subscriber-tag-selector__create-fields">
+                        <label class="visually-hidden" for="new-subscriber-tag">New tag name</label>
+                        <input id="new-subscriber-tag" type="text" maxlength="100" placeholder="Tag name (e.g. Investor)">
+                        <button class="subscribers-button subscribers-button--accent" id="create-tag-button" type="button">Add Tag</button>
+                    </div>
+                </div>
+            </fieldset>
+            <section class="subscriber-mailing-status" id="subscriber-mailing-status" hidden aria-labelledby="subscriber-mailing-status-title">
+                <h3 id="subscriber-mailing-status-title">Mailing status</h3>
+                <p>Control whether this contact can receive email campaigns.</p>
+                <div class="subscriber-mailing-status__current">
+                    <div>
+                        <strong id="subscriber-current-status">Active</strong>
+                        <span id="subscriber-current-status-description">This subscriber can receive email campaigns.</span>
+                    </div>
+                    <div class="subscriber-dialog__status-actions" id="subscriber-status-actions" hidden>
+                        <button class="subscribers-button subscribers-button--warning" id="unsubscribe-subscriber-button" type="button">Remove from Mailing List</button>
+                        <button class="subscribers-button subscribers-button--warning" id="suppress-subscriber-button" type="button">Block from Emails</button>
+                        <button class="subscribers-button subscribers-button--accent" id="restore-subscriber-button" type="button" hidden></button>
+                    </div>
+                </div>
+            </section>
+            <p class="subscriber-form__message" id="subscriber-form-message" aria-live="polite"></p>
+            <div class="subscriber-dialog__actions">
+                <button class="subscribers-button" id="subscriber-dialog-cancel" type="button">Cancel</button>
+                <button class="subscribers-button subscribers-button--accent" id="subscriber-form-submit" type="submit">Save subscriber</button>
+            </div>
+        </form>
+    </dialog>
+</body>
+</html>

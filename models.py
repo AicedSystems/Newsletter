@@ -1,11 +1,29 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from extensions import db
+
+
+subscriber_tag_assignments = db.Table(
+    "subscriber_tag_assignments",
+    db.Column(
+        "subscriber_id",
+        ForeignKey("public.subscribers.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    db.Column(
+        "tag_id",
+        ForeignKey("public.subscriber_tags.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    db.Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Index("ix_subscriber_tag_assignments_tag_id", "tag_id"),
+    schema="public",
+)
 
 
 class Post(db.Model):
@@ -21,3 +39,76 @@ class Post(db.Model):
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     content_blocks: Mapped[Optional[list[dict]]] = mapped_column(JSONB, nullable=True)
+
+
+class Subscriber(db.Model):
+    __tablename__ = "subscribers"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('active', 'unsubscribed', 'suppressed')",
+            name="ck_subscribers_status",
+        ),
+        {"schema": "public"},
+    )
+
+    STATUS_ACTIVE = "active"
+    STATUS_UNSUBSCRIBED = "unsubscribed"
+    STATUS_SUPPRESSED = "suppressed"
+    ALLOWED_STATUSES = {
+        STATUS_ACTIVE,
+        STATUS_UNSUBSCRIBED,
+        STATUS_SUPPRESSED,
+    }
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    first_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    last_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=STATUS_ACTIVE, server_default=STATUS_ACTIVE
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    unsubscribed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    tags: Mapped[list["SubscriberTag"]] = relationship(
+        secondary=subscriber_tag_assignments,
+        back_populates="subscribers",
+    )
+
+    @validates("email")
+    def normalize_email(self, _key: str, value: str) -> str:
+        return value.strip().lower()
+
+
+Index("uq_subscribers_email_lower", func.lower(Subscriber.email), unique=True)
+
+
+class SubscriberTag(db.Model):
+    __tablename__ = "subscriber_tags"
+    __table_args__ = {"schema": "public"}
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    normalized_name: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+    subscribers: Mapped[list[Subscriber]] = relationship(
+        secondary=subscriber_tag_assignments,
+        back_populates="tags",
+    )
+
+    @validates("name")
+    def normalize_name(self, _key: str, value: str) -> str:
+        display_name = value.strip()
+        self.normalized_name = display_name.lower()
+        return display_name

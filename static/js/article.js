@@ -18,11 +18,16 @@ const categoryLabels = {
 };
 
 function formatPublishedDate(publishedDate) {
+    if (!publishedDate) return "";
     return new Intl.DateTimeFormat("en-US", {
         month: "long",
         day: "numeric",
         year: "numeric"
     }).format(new Date(publishedDate));
+}
+
+function isSafeImageSource(value) {
+    return isSafeWebUrl(value) || /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/i.test(value || "");
 }
 
 function getYouTubeEmbedUrl(value) {
@@ -83,7 +88,7 @@ function createArticleBlock(block) {
         return quote;
     }
 
-    if (block.type === "image" && isSafeWebUrl(block.url)) {
+    if (block.type === "image" && isSafeImageSource(block.url)) {
         const image = document.createElement("img");
         image.className = "article-block__image";
         image.src = block.url;
@@ -128,10 +133,11 @@ function renderArticle(post) {
     articleCategory.textContent = categoryLabels[post.category] || post.category;
     articleTitle.textContent = post.title;
     articleExcerpt.textContent = post.excerpt;
-    articleDate.dateTime = post.publishedDate;
+    articleDate.dateTime = post.publishedDate || "";
     articleDate.textContent = formatPublishedDate(post.publishedDate);
+    articleDate.hidden = !post.publishedDate;
     renderContentBlocks(post);
-    document.title = `${post.title} | Rise Dashboard`;
+    document.title = `${post.title} | Inside the Market`;
 
     articleTags.replaceChildren(...post.tags.map((tag) => {
         const tagItem = document.createElement("li");

@@ -310,9 +310,9 @@
 
                         <div class="ai-assistant-card__quick-actions" aria-label="AI quick actions">
                         <button id="improve-seo-button" type="button" data-ai-action="seo" title="Improve SEO"><span class="ai-assistant-card__action-icon"><img src="{{ url_for('static', filename='images/aicedbot-seo-bars.png') }}" alt=""></span><span><strong>Improve SEO</strong><small>Better visibility and keywords</small></span></button>
-                        <button type="button" title="Improve readability will be connected next"><span class="ai-assistant-card__action-icon"><img src="{{ url_for('static', filename='images/aicedbot-readability.png') }}" alt=""></span><span><strong>Improve readability</strong><small>Clearer and simpler writing</small></span></button>
-                        <button type="button" title="Make it shorter will be connected next"><span class="ai-assistant-card__action-icon"><img src="{{ url_for('static', filename='images/aicedbot-shorten.png') }}" alt=""></span><span><strong>Make it shorter</strong><small>Remove fluff, keep the key points</small></span></button>
-                        <button type="button" title="Use a warmer tone will be connected next"><span class="ai-assistant-card__action-icon"><img src="{{ url_for('static', filename='images/aicedbot-tone.png') }}" alt=""></span><span><strong>Use a warmer tone</strong><small>Professional, friendly, or casual</small></span></button>
+                        <button type="button" data-ai-action="readability" title="Improve readability"><span class="ai-assistant-card__action-icon"><img src="{{ url_for('static', filename='images/aicedbot-readability.png') }}" alt=""></span><span><strong>Improve readability</strong><small>Clearer and simpler writing</small></span></button>
+                        <button type="button" data-ai-action="shorter" title="Make it shorter"><span class="ai-assistant-card__action-icon"><img src="{{ url_for('static', filename='images/aicedbot-shorten.png') }}" alt=""></span><span><strong>Make it shorter</strong><small>Remove fluff, keep the key points</small></span></button>
+                        <button type="button" data-ai-action="warmer_tone" title="Use a warmer tone"><span class="ai-assistant-card__action-icon"><img src="{{ url_for('static', filename='images/aicedbot-tone.png') }}" alt=""></span><span><strong>Use a warmer tone</strong><small>Professional, friendly, or casual</small></span></button>
                         </div>
                         <div class="ai-assistant-card__status" id="ai-assistant-status" aria-live="polite" hidden>
                             <span id="ai-assistant-status-message"></span>
@@ -327,10 +327,10 @@
                         <div class="ai-assistant-card__ask">
                         <p><span></span>or<span></span></p>
                         <div class="ai-assistant-card__request-row">
-                            <textarea id="ai-assistant-request" rows="1" aria-label="Ask Aiced Bot for suggestions" placeholder="Tell Aiced Bot what to change…"></textarea>
-                            <button type="button" aria-label="Send AI request" title="Custom AI requests will be connected next">➤</button>
+                            <textarea id="ai-assistant-request" rows="1" maxlength="500" aria-label="Ask Aiced Bot for suggestions" placeholder="Tell Aiced Bot what to change…"></textarea>
+                            <button id="ai-assistant-request-send" type="button" aria-label="Send AI request" title="Send request to Aiced Bot">➤</button>
                         </div>
-                        <div class="ai-assistant-card__examples" aria-label="Example AI requests"><span>Examples:</span><button type="button">“Make the intro shorter”</button><button type="button">“Add a section about Palmdale”</button></div>
+                        <div class="ai-assistant-card__examples" aria-label="Example AI requests"><span>Examples:</span><button type="button" data-ai-example="Make the introduction shorter.">“Make the intro shorter”</button><button type="button" data-ai-example="Make this sound more welcoming.">“Make this more welcoming”</button></div>
                         </div>
                     </div>
                 </section>
@@ -459,15 +459,15 @@
                         <span class="aiced-bot-panel__action-icon" aria-hidden="true"><img src="{{ url_for('static', filename='images/aicedbot-seo-bars.png') }}" alt=""></span>
                         <span class="aiced-bot-panel__action-copy"><strong>Improve SEO</strong><small>Better visibility and keyword usage</small></span>
                     </button>
-                    <button type="button" data-aiced-bot-action="improve_readability">
+                    <button type="button" data-aiced-bot-action="readability">
                         <span class="aiced-bot-panel__action-icon" aria-hidden="true"><img src="{{ url_for('static', filename='images/aicedbot-readability.png') }}" alt=""></span>
                         <span class="aiced-bot-panel__action-copy"><strong>Improve readability</strong><small>Clearer and simpler writing</small></span>
                     </button>
-                    <button type="button" data-aiced-bot-action="make_shorter">
+                    <button type="button" data-aiced-bot-action="shorter">
                         <span class="aiced-bot-panel__action-icon" aria-hidden="true"><img src="{{ url_for('static', filename='images/aicedbot-shorten.png') }}" alt=""></span>
                         <span class="aiced-bot-panel__action-copy"><strong>Make it shorter</strong><small>Remove fluff and keep key points</small></span>
                     </button>
-                    <button type="button" data-aiced-bot-action="change_tone">
+                    <button type="button" data-aiced-bot-action="warmer_tone">
                         <span class="aiced-bot-panel__action-icon" aria-hidden="true"><img src="{{ url_for('static', filename='images/aicedbot-tone.png') }}" alt=""></span>
                         <span class="aiced-bot-panel__action-copy"><strong>Change tone</strong><small>Professional, friendly, or conversational</small></span>
                     </button>
@@ -476,14 +476,14 @@
                 <div class="aiced-bot-panel__workflow" id="aiced-bot-workflow-content" aria-live="polite" hidden></div>
             </div>
             <div class="aiced-bot-panel__composer" id="aiced-bot-panel-composer">
-                <textarea rows="1" aria-label="Tell Aiced Bot what you would like changed" placeholder="Do anything with AI…"></textarea>
+                <textarea id="aiced-bot-custom-request" rows="1" maxlength="500" aria-label="Tell Aiced Bot what you would like changed" placeholder="Tell Aiced Bot what to change…"></textarea>
                 <div class="aiced-bot-panel__composer-actions">
                     <div class="aiced-bot-panel__composer-tools">
                         <input class="visually-hidden" id="aiced-bot-file-input" type="file" multiple>
                         <label for="aiced-bot-file-input" aria-label="Attach files" title="Choose files to attach">+</label>
                     </div>
                     <span>Auto</span>
-                    <button class="aiced-bot-panel__send" type="button" aria-label="Send custom request" title="Custom Aiced Bot requests will be connected next">↑</button>
+                    <button class="aiced-bot-panel__send" id="aiced-bot-custom-send" type="button" aria-label="Send custom request" title="Send request to Aiced Bot">↑</button>
                 </div>
             </div>
         </aside>

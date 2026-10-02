@@ -72,6 +72,12 @@ const aicedBotPanelComposer = document.querySelector("#aiced-bot-panel-composer"
 const aiAssistantCardToggleButton = document.querySelector("#ai-assistant-card-toggle-button");
 const aiAssistantCardContent = document.querySelector("#ai-assistant-card-content");
 const improveSeoButton = document.querySelector("#improve-seo-button");
+const aiActionButtons = [...document.querySelectorAll("[data-ai-action]")];
+const aiAssistantRequest = document.querySelector("#ai-assistant-request");
+const aiAssistantRequestSend = document.querySelector("#ai-assistant-request-send");
+const aiAssistantExamples = [...document.querySelectorAll("[data-ai-example]")];
+const aicedBotCustomRequest = document.querySelector("#aiced-bot-custom-request");
+const aicedBotCustomSend = document.querySelector("#aiced-bot-custom-send");
 const aiAssistantStatus = document.querySelector("#ai-assistant-status");
 const aiAssistantStatusMessage = document.querySelector("#ai-assistant-status-message");
 const undoAiAssistantButton = document.querySelector("#undo-ai-assistant-button");
@@ -87,7 +93,14 @@ let standaloneBetweenSectionBlocks = new WeakSet();
 let lastContentBlocksSnapshot = [];
 let aiUndoState = null;
 let isAiEditProcessing = false;
-let aiDrawerState = {mode: "idle", beforeState: null, afterState: null};
+let aiDrawerState = {mode: "idle", beforeState: null, afterState: null, request: null};
+const aiIntentPresentation = {
+    seo: {progress: "Improving SEO…", description: "Aiced Bot is reviewing your article for search clarity.", complete: "SEO proposal ready"},
+    shorter: {progress: "Making it shorter…", description: "Aiced Bot is removing repetition while preserving useful details.", complete: "Shorter version ready"},
+    readability: {progress: "Improving readability…", description: "Aiced Bot is improving clarity, sentence structure, and flow.", complete: "Readability proposal ready"},
+    warmer_tone: {progress: "Warming the tone…", description: "Aiced Bot is making the article more approachable while keeping it professional.", complete: "Warmer version ready"},
+    custom: {progress: "Working on your request…", description: "Aiced Bot is applying your requested editorial change safely.", complete: "Custom edit ready"}
+};
 
 function setAicedBotPanelOpen(isOpen) {
     aicedBotLauncher.setAttribute("aria-expanded", String(isOpen));
@@ -1316,7 +1329,7 @@ function setAiDrawerScreen(mode, content) {
 }
 
 function showAiIdle() {
-    aiDrawerState = {mode: "idle", beforeState: null, afterState: null};
+    aiDrawerState = {mode: "idle", beforeState: null, afterState: null, request: null};
     setAiDrawerScreen("idle", []);
 }
 
@@ -1393,25 +1406,42 @@ function getAiChangeSummary(beforeState, afterState) {
     return {fieldChanges, blockChanges, blockCountChanges, changedBlockCounts};
 }
 
-function showAiProcessing(beforeState) {
+function getAiIntentPresentation(action) {
+    return aiIntentPresentation[action] || aiIntentPresentation.custom;
+}
+
+function setAiControlsDisabled(disabled) {
+    aiActionButtons.forEach((button) => {
+        button.disabled = disabled;
+        button.classList.toggle("is-loading", disabled);
+    });
+    document.querySelectorAll("[data-aiced-bot-action]").forEach((button) => {
+        button.disabled = disabled;
+    });
+    aiAssistantRequestSend.disabled = disabled;
+    aicedBotCustomSend.disabled = disabled;
+}
+
+function showAiProcessing(beforeState, request) {
+    const presentation = getAiIntentPresentation(request.action);
     const image = document.createElement("img");
     image.className = "aiced-bot-panel__workflow-bot";
     image.src = "/static/images/aicedbotrunning.png";
     image.alt = "Aiced Bot is working";
 
-    const title = createAiDrawerElement("h2", "aiced-bot-panel__workflow-title", "Improving SEO...");
+    const title = createAiDrawerElement("h2", "aiced-bot-panel__workflow-title", presentation.progress);
     const description = createAiDrawerElement(
         "p",
         "aiced-bot-panel__workflow-description",
-        "Aiced Bot is reviewing your article for search clarity."
+        presentation.description
     );
     const label = createAiDrawerElement("p", "aiced-bot-panel__workflow-label", "Analyzing:");
     const list = createAiDrawerElement("ul", "aiced-bot-panel__workflow-list");
-    ["Title", "SEO summary", "Headings", "Keyword clarity"].forEach((item) => {
+    ["Article context", "Facts and meaning", "Text structure", "Requested style"].forEach((item) => {
         list.append(createAiDrawerElement("li", "", item));
     });
 
-    aiDrawerState = {mode: "processing", beforeState, afterState: null};
+    aiDrawerState = {mode: "processing", beforeState, afterState: null, request};
     setAiDrawerScreen("processing", [image, title, description, label, list]);
 }
 
@@ -1424,16 +1454,17 @@ function getSuccessSummaryItems(summary) {
             .map(([type, count]) => `${count} ${type} block${count === 1 ? "" : "s"} updated`)
     ];
 
-    return items.length ? items : ["Search clarity refinements"];
+    return items.length ? items : ["Editorial refinements"];
 }
 
-function showAiSuccess(beforeState, afterState) {
-    const summary = getAiChangeSummary(beforeState, afterState);
-    const title = createAiDrawerElement("h2", "aiced-bot-panel__workflow-title", "SEO improved");
+function showAiApplied() {
+    const {request, summary} = aiDrawerState;
+    const presentation = getAiIntentPresentation(request.action);
+    const title = createAiDrawerElement("h2", "aiced-bot-panel__workflow-title", "Changes applied");
     const description = createAiDrawerElement(
         "p",
         "aiced-bot-panel__workflow-description",
-        "Your editor has been updated. Review the changes before publishing."
+        "Your editor now includes the approved changes. You can undo them until another AI edit is applied."
     );
     const label = createAiDrawerElement("p", "aiced-bot-panel__workflow-label", "I updated:");
     const list = createAiDrawerElement("ul", "aiced-bot-panel__workflow-list");
@@ -1442,12 +1473,11 @@ function showAiSuccess(beforeState, afterState) {
     });
     const actions = createAiDrawerElement("div", "aiced-bot-panel__workflow-actions");
     actions.append(
-        createAiDrawerButton("Review changes", "review", true),
-        createAiDrawerButton("Undo", "undo")
+        createAiDrawerButton("Undo", "undo", true),
+        createAiDrawerButton("Back to actions", "idle")
     );
-
-    aiDrawerState = {mode: "success", beforeState, afterState, summary};
-    setAiDrawerScreen("success", [title, description, label, list, actions]);
+    setAiDrawerScreen("applied", [title, description, label, list, actions]);
+    showAiAssistantStatus(`${presentation.complete} and applied`, true);
 }
 
 function createAiReviewItem(label, beforeValue, afterValue) {
@@ -1466,8 +1496,8 @@ function createAiReviewItem(label, beforeValue, afterValue) {
 }
 
 function showAiReview() {
-    const {beforeState, afterState, summary} = aiDrawerState;
-    const title = createAiDrawerElement("h2", "aiced-bot-panel__workflow-title", "Review SEO changes");
+    const {summary, request} = aiDrawerState;
+    const title = createAiDrawerElement("h2", "aiced-bot-panel__workflow-title", "Review changes");
     const description = createAiDrawerElement(
         "p",
         "aiced-bot-panel__workflow-description",
@@ -1488,18 +1518,19 @@ function showAiReview() {
 
     const actions = createAiDrawerElement("div", "aiced-bot-panel__workflow-actions");
     actions.append(
-        createAiDrawerButton("Back", "success"),
-        createAiDrawerButton("Undo", "undo")
+        createAiDrawerButton("Apply changes", "apply", true),
+        createAiDrawerButton("Cancel", "cancel")
     );
     setAiDrawerScreen("review", [title, description, review, actions]);
+    showAiAssistantStatus(getAiIntentPresentation(request.action).complete);
 }
 
-function showAiError() {
-    const title = createAiDrawerElement("h2", "aiced-bot-panel__workflow-title", "Couldn't improve SEO");
+function showAiError(message) {
+    const title = createAiDrawerElement("h2", "aiced-bot-panel__workflow-title", "Aiced Bot couldn't finish");
     const description = createAiDrawerElement(
         "p",
         "aiced-bot-panel__workflow-description",
-        "Your original article has not been changed."
+        message || "Your original article has not been changed."
     );
     const actions = createAiDrawerElement("div", "aiced-bot-panel__workflow-actions");
     actions.append(
@@ -1530,33 +1561,62 @@ function undoAiChanges() {
     aiUndoState = null;
     setAicedBotPanelOpen(true);
     showAiUndoComplete();
-    showAiAssistantStatus("SEO changes undone");
-    showPublishingStatus("SEO changes undone.");
+    showAiAssistantStatus("AI changes undone");
+    showPublishingStatus("AI changes undone.");
 }
 
-async function improveSeo() {
+function applyAiChanges() {
+    if (!aiDrawerState.afterState || !aiDrawerState.beforeState) {
+        return;
+    }
+
+    restoreAiEditorState(aiDrawerState.afterState);
+    aiUndoState = aiDrawerState.beforeState;
+    showAiApplied();
+    showPublishingStatus("AI changes applied. Review your article before publishing.");
+}
+
+function cancelAiChanges() {
+    showAiAssistantStatus("Suggestion canceled. Your article was not changed.", Boolean(aiUndoState));
+    showPublishingStatus("AI suggestion canceled. Your article was not changed.");
+    showAiIdle();
+}
+
+async function runAiEdit(action, instruction = "") {
     if (isAiEditProcessing) {
+        return;
+    }
+
+    const presentation = getAiIntentPresentation(action);
+    const trimmedInstruction = instruction.trim();
+    if (action === "custom" && !trimmedInstruction) {
+        const message = "Tell Aiced Bot what you would like changed.";
+        showAiAssistantStatus(message, Boolean(aiUndoState));
+        showPublishingStatus(message);
         return;
     }
 
     const editorState = captureAiEditorState();
     const { title, excerpt, category, tags, contentBlocks } = editorState.post;
     const requestBody = {
-        action: "seo",
+        action,
         title,
         excerpt,
         category,
         tags,
         contentBlocks
     };
+    if (action === "custom") {
+        requestBody.instruction = trimmedInstruction;
+    }
+    const aiRequest = {action, instruction: trimmedInstruction};
 
     isAiEditProcessing = true;
     setAicedBotPanelOpen(true);
-    showAiProcessing(editorState);
-    improveSeoButton.disabled = true;
-    improveSeoButton.classList.add("is-loading");
-    showAiAssistantStatus("Aiced Bot is improving SEO...");
-    showPublishingStatus("Aiced Bot is improving SEO...");
+    showAiProcessing(editorState, aiRequest);
+    setAiControlsDisabled(true);
+    showAiAssistantStatus(presentation.progress);
+    showPublishingStatus(presentation.progress);
 
     try {
         const response = await fetch("/api/posts/ai-edit", {
@@ -1568,34 +1628,33 @@ async function improveSeo() {
         const result = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-            throw new Error(result.message || "AI could not improve SEO right now.");
+            throw new Error(result.message || "Aiced Bot could not complete that request.");
         }
 
         if (!Array.isArray(result.contentBlocks) || !result.title || !result.excerpt) {
             throw new Error("AI returned an unusable result.");
         }
 
-        aiUndoState = editorState;
-        populatePostForm({
-            ...result,
-            featuredImage: editorState.post.featuredImage
-        });
-        const afterState = captureAiEditorState();
-        showAiSuccess(editorState, afterState);
-        showAiAssistantStatus("SEO improved", true);
-        showPublishingStatus("SEO improved. Review the changes before publishing.");
+        const afterState = {
+            ...editorState,
+            post: {...editorState.post, ...result, featuredImage: editorState.post.featuredImage}
+        };
+        const summary = getAiChangeSummary(editorState, afterState);
+        aiDrawerState = {mode: "review", beforeState: editorState, afterState, summary, request: aiRequest};
+        showAiReview();
+        showPublishingStatus(`${presentation.complete}. Review before applying.`);
     } catch (error) {
         const message = error instanceof TypeError
             ? "Network error. Check your connection and try again."
-            : "Aiced Bot could not improve SEO right now.";
-        showAiError();
-        showAiAssistantStatus(message);
+            : error.message || "Aiced Bot could not complete that request.";
+        aiDrawerState = {...aiDrawerState, request: aiRequest};
+        showAiError(message);
+        showAiAssistantStatus(message, Boolean(aiUndoState));
         showPublishingStatus(message);
-        console.error("Unable to improve SEO:", error);
+        console.error("Unable to complete AI edit:", error);
     } finally {
         isAiEditProcessing = false;
-        improveSeoButton.disabled = false;
-        improveSeoButton.classList.remove("is-loading");
+        setAiControlsDisabled(false);
     }
 }
 
@@ -1768,7 +1827,7 @@ async function publishPost() {
 
         showPublishingStatus("Post published. Opening article...");
         window.setTimeout(() => {
-            window.location.assign(`/posts/${createdPost.id}`);
+            window.location.assign(`/blog/${createdPost.id}`);
         }, 250);
     } catch (error) {
         const message = error instanceof TypeError
@@ -1928,13 +1987,42 @@ postForm.querySelector("#post-category").addEventListener("change", () => {
 saveDraftButton.addEventListener("click", saveDraft);
 publishPostButton.addEventListener("click", publishPost);
 articleDetailsEditButton.addEventListener("click", toggleArticleDetailsEditor);
-improveSeoButton.addEventListener("click", improveSeo);
+aiActionButtons.forEach((button) => {
+    button.addEventListener("click", () => runAiEdit(button.dataset.aiAction));
+});
 undoAiAssistantButton.addEventListener("click", undoAiChanges);
 
+aiAssistantExamples.forEach((button) => {
+    button.addEventListener("click", () => {
+        aiAssistantRequest.value = button.dataset.aiExample || "";
+        aiAssistantRequest.focus();
+    });
+});
+
+aiAssistantRequestSend.addEventListener("click", () => {
+    runAiEdit("custom", aiAssistantRequest.value);
+});
+
+aicedBotCustomSend.addEventListener("click", () => {
+    runAiEdit("custom", aicedBotCustomRequest.value);
+});
+
+[aiAssistantRequest, aicedBotCustomRequest].forEach((textarea) => {
+    textarea.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            runAiEdit("custom", textarea.value);
+        }
+    });
+});
+
 aicedBotPanelBody.addEventListener("click", (event) => {
-    const idleAction = event.target.closest('[data-aiced-bot-action="improve_seo"]');
+    const idleAction = event.target.closest("[data-aiced-bot-action]");
     if (idleAction) {
-        improveSeo();
+        const action = idleAction.dataset.aicedBotAction === "improve_seo"
+            ? "seo"
+            : idleAction.dataset.aicedBotAction;
+        runAiEdit(action);
         return;
     }
 
@@ -1947,14 +2035,19 @@ aicedBotPanelBody.addEventListener("click", (event) => {
         case "review":
             showAiReview();
             break;
-        case "success":
-            showAiSuccess(aiDrawerState.beforeState, aiDrawerState.afterState);
+        case "apply":
+            applyAiChanges();
+            break;
+        case "cancel":
+            cancelAiChanges();
             break;
         case "undo":
             undoAiChanges();
             break;
         case "retry":
-            improveSeo();
+            if (aiDrawerState.request) {
+                runAiEdit(aiDrawerState.request.action, aiDrawerState.request.instruction);
+            }
             break;
         case "idle":
             showAiIdle();

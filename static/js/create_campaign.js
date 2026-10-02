@@ -1,28 +1,552 @@
-// Campaign workflow behavior will be added after the layout is approved.
 const themeSelector = document.querySelector("#theme-selector");
+const selectedPostElement = document.querySelector("#selected-post");
+const changeSelectedPostButton = document.querySelector("#change-selected-post");
+const postPicker = document.querySelector("#post-picker");
+const closePostPickerButton = document.querySelector("#close-post-picker");
+const postPickerList = document.querySelector("#post-picker-list");
+const postPickerStatus = document.querySelector("#post-picker-status");
+const campaignNameInput = document.querySelector("#campaign-name");
+const subjectInput = document.querySelector("#campaign-subject");
+const preheaderInput = document.querySelector("#campaign-preheader");
+const subjectCharacterCount = document.querySelector("#subject-character-count");
+const preheaderCharacterCount = document.querySelector("#preheader-character-count");
+const emailPreview = document.querySelector("#email-preview");
+const emailPreviewEmpty = document.querySelector("#email-preview-empty");
+const editEmailPreviewButton = document.querySelector("#edit-email-preview");
+const desktopPreviewButton = document.querySelector("#desktop-preview-button");
+const mobilePreviewButton = document.querySelector("#mobile-preview-button");
+const testRecipientInput = document.querySelector("#test-recipient");
+const sendTestEmailButton = document.querySelector("#send-test-email-button");
+const campaignSendStatus = document.querySelector("#campaign-send-status");
+const campaignStepButtons = [...document.querySelectorAll("[data-campaign-step]")];
+const nextCampaignStepButton = document.querySelector("#next-campaign-step");
+const recipientsStep = document.querySelector("#campaign-recipients-step");
+const reviewStep = document.querySelector("#campaign-review-step");
+const recipientSearchInput = document.querySelector("#campaign-recipient-search");
+const recipientTagFilter = document.querySelector("#campaign-recipient-tag-filter");
+const recipientList = document.querySelector("#campaign-recipient-list");
+const recipientStatus = document.querySelector("#campaign-recipient-status");
+const selectedRecipientCount = document.querySelector("#selected-recipient-count");
+const selectVisibleRecipientsButton = document.querySelector("#select-visible-recipients");
+const audienceCount = document.querySelector("#campaign-audience-count");
+const audienceContext = document.querySelector("#campaign-audience-context");
+const createWithAicedButton = document.querySelector("#create-with-aiced-button");
+const campaignAicedDialog = document.querySelector("#campaign-aiced-dialog");
+const closeCampaignAicedDialogButton = document.querySelector("#close-campaign-aiced-dialog");
+const campaignAicedRequest = document.querySelector("#campaign-aiced-request");
+const generateCampaignProposalButton = document.querySelector("#generate-campaign-proposal");
+const campaignAicedStatus = document.querySelector("#campaign-aiced-status");
+const campaignAicedProposal = document.querySelector("#campaign-aiced-proposal");
+const campaignAicedProposalDetails = document.querySelector("#campaign-aiced-proposal-details");
+const campaignAicedProposalRationale = document.querySelector("#campaign-aiced-proposal-rationale");
+const reviewAicedCampaignButton = document.querySelector("#review-aiced-campaign");
 
-const supportedThemes = new Set([
-    "midnight",
-    "obsidian",
-    "sage"
-]);
+const supportedThemes = new Set(["midnight", "obsidian", "sage"]);
+let selectedPost = null;
+let previewTimer = null;
+let isEditingPreview = false;
+let campaignEdits = { headline: "", summary: "", coverImageUrl: "" };
+let activeCampaignStep = "content";
+let recipientSearchTimer = null;
+let visibleRecipients = [];
+let availableRecipientTags = [];
+let pendingAicedProposal = null;
+let aicedAudienceTags = [];
+const selectedRecipients = new Map();
 
 function applyTheme(themeName) {
-    if (!supportedThemes.has(themeName)) {
-        return;
-    }
-
+    if (!supportedThemes.has(themeName)) return;
     document.documentElement.dataset.theme = themeName;
     themeSelector.value = themeName;
     localStorage.setItem("selectedTheme", themeName);
 }
 
-const savedTheme = localStorage.getItem("selectedTheme");
-
-if (savedTheme && supportedThemes.has(savedTheme)) {
-    applyTheme(savedTheme);
+function updateCharacterCount(input, counter) {
+    counter.textContent = `${input.value.length}/${input.maxLength}`;
 }
 
-themeSelector.addEventListener("change", (event) => {
-    applyTheme(event.target.value);
+function campaignPayload(includeRecipient = false) {
+    const payload = { postId: selectedPost?.id, campaignName: campaignNameInput.value, subject: subjectInput.value, preheader: preheaderInput.value, ...campaignEdits };
+    if (includeRecipient) payload.recipient = testRecipientInput.value;
+    return payload;
+}
+
+function showStatus(message, isError = false) {
+    campaignSendStatus.textContent = message;
+    campaignSendStatus.classList.toggle("campaign-send-status--error", isError);
+}
+
+function recipientName(subscriber) {
+    return [subscriber.firstName, subscriber.lastName].filter(Boolean).join(" ") || subscriber.email;
+}
+
+function updateAudienceSummary() {
+    const count = selectedRecipients.size;
+    const selectedTag = recipientTagFilter.options[recipientTagFilter.selectedIndex]?.text;
+    audienceCount.textContent = `${count} recipient${count === 1 ? "" : "s"}`;
+    audienceContext.textContent = aicedAudienceTags.length
+        ? `Aiced audience: ${aicedAudienceTags.join(" + ")} · Only active subscribers are eligible.`
+        : selectedTag && recipientTagFilter.value
+        ? `${selectedTag} filter · Only active subscribers are eligible.`
+        : "Only active subscribers are eligible.";
+    selectedRecipientCount.textContent = `${count} selected`;
+}
+
+function setAicedCampaignStatus(message, isError = false) {
+    campaignAicedStatus.textContent = message;
+    campaignAicedStatus.classList.toggle("campaign-aiced-dialog__status--error", isError);
+}
+
+function renderAicedCampaignProposal(proposal, post) {
+    campaignAicedProposalDetails.replaceChildren();
+    const entries = [
+        ["Article", post.title],
+        ["Campaign", proposal.campaignName],
+        ["Subject", proposal.subject],
+        ["Preheader", proposal.preheader],
+        ["Audience", proposal.audience.tags.length ? proposal.audience.tags.join(" + ") : "All active subscribers"],
+        ["Eligible", `${proposal.eligibleRecipientCount} active recipient${proposal.eligibleRecipientCount === 1 ? "" : "s"}`],
+    ];
+    entries.forEach(([label, value]) => {
+        const term = document.createElement("dt");
+        term.textContent = label;
+        const description = document.createElement("dd");
+        description.textContent = value;
+        campaignAicedProposalDetails.append(term, description);
+    });
+    campaignAicedProposalRationale.textContent = proposal.audienceRationale;
+    campaignAicedProposal.hidden = false;
+}
+
+async function generateAicedCampaignProposal() {
+    const campaignRequest = campaignAicedRequest.value.trim();
+    if (!campaignRequest) {
+        setAicedCampaignStatus("Describe the campaign you would like Aiced Bot to create.", true);
+        campaignAicedRequest.focus();
+        return;
+    }
+
+    generateCampaignProposalButton.disabled = true;
+    campaignAicedProposal.hidden = true;
+    pendingAicedProposal = null;
+    setAicedCampaignStatus("Aiced Bot is creating your campaign proposal…");
+    try {
+        const response = await fetch("/api/campaigns/aiced-proposal", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ request: campaignRequest }),
+        });
+        const proposal = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(proposal.message || "Aiced Bot could not create a proposal.");
+
+        const postsResponse = await fetch("/api/posts");
+        const posts = await postsResponse.json().catch(() => []);
+        const post = Array.isArray(posts) ? posts.find((item) => item.id === proposal.postId) : null;
+        if (!postsResponse.ok || !post) throw new Error("The proposed article is no longer available. Please try again.");
+
+        pendingAicedProposal = { proposal, post };
+        renderAicedCampaignProposal(proposal, post);
+        setAicedCampaignStatus("Proposal ready. Review it before applying it to this campaign.");
+    } catch (error) {
+        setAicedCampaignStatus(error.message || "Aiced Bot could not create a proposal.", true);
+    } finally {
+        generateCampaignProposalButton.disabled = false;
+    }
+}
+
+async function applyAicedCampaignProposal() {
+    if (!pendingAicedProposal) return;
+    const { proposal, post } = pendingAicedProposal;
+    reviewAicedCampaignButton.disabled = true;
+    try {
+        const response = await fetch("/api/subscribers?status=active");
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.message || "Active subscribers could not be loaded.");
+
+        const subscribersById = new Map((result.subscribers || []).map((subscriber) => [subscriber.id, subscriber]));
+        selectedRecipients.clear();
+        (proposal.eligibleRecipientIds || []).forEach((id) => {
+            const subscriber = subscribersById.get(id);
+            if (subscriber) selectedRecipients.set(id, subscriber);
+        });
+        visibleRecipients = result.subscribers || [];
+        availableRecipientTags = result.availableTags || [];
+        renderRecipientTagFilter();
+        renderRecipients();
+
+        selectedPost = post;
+        campaignEdits = {
+            headline: post.title,
+            summary: post.excerpt,
+            coverImageUrl: post.featuredImage?.startsWith("https://") ? post.featuredImage : "",
+        };
+        campaignNameInput.value = proposal.campaignName;
+        subjectInput.value = proposal.subject;
+        preheaderInput.value = proposal.preheader;
+        aicedAudienceTags = [...proposal.audience.tags];
+        updateCharacterCount(subjectInput, subjectCharacterCount);
+        updateCharacterCount(preheaderInput, preheaderCharacterCount);
+        renderSelectedPost();
+        schedulePreviewRender();
+        campaignAicedDialog.close();
+        setCampaignStep("review");
+    } catch (error) {
+        setAicedCampaignStatus(error.message || "The proposal could not be applied.", true);
+    } finally {
+        reviewAicedCampaignButton.disabled = false;
+    }
+}
+
+function renderReview() {
+    document.querySelector("#review-post-title").textContent = selectedPost?.title || "No post selected";
+    document.querySelector("#review-subject").textContent = subjectInput.value ? `Subject: ${subjectInput.value}` : "No subject line";
+    document.querySelector("#review-preheader").textContent = preheaderInput.value ? `Preheader: ${preheaderInput.value}` : "No preheader text";
+    document.querySelector("#review-recipient-count").textContent = `${selectedRecipients.size} recipient${selectedRecipients.size === 1 ? "" : "s"} selected`;
+    const reviewRecipientList = document.querySelector("#review-recipient-list");
+    reviewRecipientList.replaceChildren();
+    [...selectedRecipients.values()].slice(0, 5).forEach((subscriber) => {
+        const item = document.createElement("li");
+        item.textContent = `${recipientName(subscriber)} · ${subscriber.email}`;
+        reviewRecipientList.append(item);
+    });
+    if (selectedRecipients.size > 5) {
+        const item = document.createElement("li");
+        item.textContent = `+ ${selectedRecipients.size - 5} more selected`;
+        reviewRecipientList.append(item);
+    }
+}
+
+function setCampaignStep(step) {
+    activeCampaignStep = step;
+    recipientsStep.hidden = step !== "recipients";
+    reviewStep.hidden = step !== "review";
+    campaignStepButtons.forEach((button) => {
+        const isActive = button.dataset.campaignStep === step;
+        button.classList.toggle("campaign-steps__button--active", isActive);
+        button.toggleAttribute("aria-current", isActive);
+    });
+    if (step === "content") {
+        nextCampaignStepButton.innerHTML = 'Next: Recipients <span aria-hidden="true">→</span>';
+    } else if (step === "recipients") {
+        nextCampaignStepButton.innerHTML = 'Next: Review &amp; send <span aria-hidden="true">→</span>';
+        loadRecipients();
+        recipientsStep.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+        nextCampaignStepButton.innerHTML = 'Back: Recipients <span aria-hidden="true">←</span>';
+        renderReview();
+        reviewStep.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    updateAudienceSummary();
+}
+
+function renderRecipientTagFilter() {
+    const selectedValue = recipientTagFilter.value;
+    recipientTagFilter.replaceChildren(new Option("All tags", ""));
+    availableRecipientTags.forEach((tag) => recipientTagFilter.add(new Option(tag.name, tag.id)));
+    recipientTagFilter.value = availableRecipientTags.some((tag) => String(tag.id) === selectedValue) ? selectedValue : "";
+}
+
+function renderRecipients() {
+    recipientList.replaceChildren();
+    selectVisibleRecipientsButton.disabled = !visibleRecipients.length;
+    if (!visibleRecipients.length) return;
+
+    visibleRecipients.forEach((subscriber) => {
+        const label = document.createElement("label");
+        label.className = "campaign-recipient-row";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = selectedRecipients.has(subscriber.id);
+        checkbox.disabled = subscriber.status !== "active";
+        checkbox.dataset.recipientId = subscriber.id;
+        const details = document.createElement("span");
+        const name = document.createElement("strong");
+        name.textContent = recipientName(subscriber);
+        const email = document.createElement("small");
+        email.textContent = subscriber.email;
+        const tags = document.createElement("em");
+        tags.textContent = subscriber.tags.map((tag) => tag.name).join(" · ") || "No tags";
+        details.append(name, email, tags);
+        label.append(checkbox, details);
+        recipientList.append(label);
+    });
+}
+
+async function loadRecipients() {
+    recipientStatus.textContent = "Loading active subscribers…";
+    const query = new URLSearchParams({ status: "active" });
+    if (recipientSearchInput.value.trim()) query.set("search", recipientSearchInput.value.trim());
+    if (recipientTagFilter.value) query.set("tag", recipientTagFilter.value);
+    try {
+        const response = await fetch(`/api/subscribers?${query}`);
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.message || "Subscribers could not be loaded.");
+        visibleRecipients = result.subscribers || [];
+        availableRecipientTags = result.availableTags || [];
+        renderRecipientTagFilter();
+        renderRecipients();
+        if (!visibleRecipients.length) {
+            recipientStatus.innerHTML = (result.counts?.active || 0) === 0
+                ? 'No active subscribers available. <a href="/subscribers">Manage subscribers</a>'
+                : "No subscribers match these filters.";
+        } else {
+            recipientStatus.textContent = "Only active subscribers can be selected.";
+        }
+        updateAudienceSummary();
+    } catch (error) {
+        recipientStatus.textContent = error.message || "Subscribers could not be loaded.";
+    }
+}
+
+function renderSelectedPost() {
+    selectedPostElement.replaceChildren();
+    if (!selectedPost) {
+        selectedPostElement.classList.add("selected-post--empty");
+        selectedPostElement.innerHTML = '<div class="selected-post__content"><p class="selected-post__empty-message">Choose a published article to build the email preview.</p></div>';
+        return;
+    }
+
+    selectedPostElement.classList.remove("selected-post--empty");
+    if (selectedPost.featuredImage?.startsWith("https://")) {
+        const media = document.createElement("div");
+        media.className = "selected-post__media";
+        const image = document.createElement("img");
+        image.className = "selected-post__image";
+        image.src = selectedPost.featuredImage;
+        image.alt = "";
+        media.append(image);
+        selectedPostElement.append(media);
+    }
+    const content = document.createElement("div");
+    content.className = "selected-post__content";
+    const category = document.createElement("p");
+    category.className = "selected-post__category";
+    category.textContent = selectedPost.category.replaceAll("-", " ");
+    const title = document.createElement("h3");
+    title.className = "selected-post__title";
+    title.textContent = selectedPost.title;
+    content.append(category, title);
+    selectedPostElement.append(content);
+}
+
+async function renderPreview() {
+    if (!selectedPost) {
+        emailPreview.removeAttribute("srcdoc");
+        emailPreview.hidden = true;
+        emailPreviewEmpty.hidden = false;
+        editEmailPreviewButton.disabled = true;
+        return;
+    }
+    const response = await fetch("/api/campaigns/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(campaignPayload()) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        emailPreview.removeAttribute("srcdoc");
+        emailPreview.hidden = true;
+        emailPreviewEmpty.textContent = result.message || "Unable to render this email preview.";
+        emailPreviewEmpty.hidden = false;
+        return;
+    }
+    editEmailPreviewButton.disabled = true;
+    emailPreview.onload = () => { editEmailPreviewButton.disabled = false; };
+    emailPreview.srcdoc = result.html;
+    emailPreview.hidden = false;
+    emailPreviewEmpty.hidden = true;
+}
+
+function finishPreviewEditing() {
+    isEditingPreview = false;
+    editEmailPreviewButton.textContent = "Edit email";
+    emailPreview.classList.remove("email-preview--editing");
+    schedulePreviewRender();
+}
+
+function enablePreviewEditing() {
+    const previewDocument = emailPreview.contentDocument;
+    if (!previewDocument) return;
+
+    isEditingPreview = true;
+    editEmailPreviewButton.textContent = "Done editing";
+    emailPreview.classList.add("email-preview--editing");
+    const headline = previewDocument.querySelector('[data-email-editable="headline"]');
+    const summary = previewDocument.querySelector('[data-email-editable="summary"]');
+    const coverImage = previewDocument.querySelector('[data-email-editable="cover-image"]');
+
+    [headline, summary].forEach((element) => {
+        if (!element) return;
+        element.contentEditable = "true";
+        element.style.outline = "2px solid #3b82f6";
+        element.style.outlineOffset = "5px";
+        element.style.cursor = "text";
+    });
+    headline?.addEventListener("input", () => { campaignEdits.headline = headline.textContent.trim(); });
+    summary?.addEventListener("input", () => { campaignEdits.summary = summary.textContent.trim(); });
+    if (coverImage) {
+        coverImage.style.outline = "2px solid #3b82f6";
+        coverImage.style.outlineOffset = "-4px";
+        coverImage.style.cursor = "pointer";
+        coverImage.title = "Click to replace this cover image";
+        coverImage.addEventListener("click", () => {
+            const nextUrl = window.prompt("Paste a public HTTPS image URL", campaignEdits.coverImageUrl || coverImage.src);
+            if (!nextUrl) return;
+            if (!nextUrl.startsWith("https://")) {
+                window.alert("Please use a public HTTPS image URL.");
+                return;
+            }
+            campaignEdits.coverImageUrl = nextUrl;
+            coverImage.src = nextUrl;
+        });
+    }
+    headline?.focus();
+}
+
+function schedulePreviewRender() {
+    window.clearTimeout(previewTimer);
+    previewTimer = window.setTimeout(() => renderPreview().catch(() => {
+        emailPreview.hidden = true;
+        emailPreviewEmpty.textContent = "Unable to render this email preview.";
+        emailPreviewEmpty.hidden = false;
+    }), 300);
+}
+
+function renderPostPicker(posts) {
+    postPickerList.replaceChildren();
+    if (!posts.length) {
+        postPickerStatus.textContent = "No published articles are available yet.";
+        return;
+    }
+    postPickerStatus.textContent = "";
+    posts.forEach((post) => {
+        const button = document.createElement("button");
+        button.className = "post-picker__option";
+        button.type = "button";
+        const title = document.createElement("strong");
+        title.textContent = post.title;
+        const details = document.createElement("span");
+        details.textContent = `${post.category.replaceAll("-", " ")} · ${post.excerpt}`;
+        button.append(title, details);
+        button.addEventListener("click", () => {
+            selectedPost = post;
+            campaignEdits = { headline: post.title, summary: post.excerpt, coverImageUrl: post.featuredImage?.startsWith("https://") ? post.featuredImage : "" };
+            isEditingPreview = false;
+            editEmailPreviewButton.textContent = "Edit email";
+            renderSelectedPost();
+            postPicker.close();
+            schedulePreviewRender();
+        });
+        postPickerList.append(button);
+    });
+}
+
+async function openPostPicker() {
+    postPickerStatus.textContent = "Loading published articles…";
+    postPickerList.replaceChildren();
+    postPicker.showModal();
+    try {
+        const response = await fetch("/api/posts");
+        const posts = await response.json();
+        if (!response.ok || !Array.isArray(posts)) throw new Error();
+        renderPostPicker(posts);
+    } catch {
+        postPickerStatus.textContent = "Published articles could not be loaded. Please try again.";
+    }
+}
+
+async function sendTestEmail() {
+    if (!selectedPost) {
+        showStatus("Choose a published article before sending a test.", true);
+        return;
+    }
+    sendTestEmailButton.disabled = true;
+    showStatus("Sending test email…");
+    try {
+        const response = await fetch("/api/campaigns/send-test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(campaignPayload(true)) });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.message || "Test email could not be sent.");
+        showStatus(`Test email sent. Message ID: ${result.messageId}`);
+    } catch (error) {
+        showStatus(error.message || "Test email could not be sent.", true);
+    } finally {
+        sendTestEmailButton.disabled = false;
+    }
+}
+
+const savedTheme = localStorage.getItem("selectedTheme");
+if (savedTheme && supportedThemes.has(savedTheme)) applyTheme(savedTheme);
+themeSelector.addEventListener("change", (event) => applyTheme(event.target.value));
+changeSelectedPostButton.addEventListener("click", openPostPicker);
+createWithAicedButton.addEventListener("click", () => {
+    pendingAicedProposal = null;
+    campaignAicedProposal.hidden = true;
+    setAicedCampaignStatus("");
+    campaignAicedDialog.showModal();
+    campaignAicedRequest.focus();
 });
+closeCampaignAicedDialogButton.addEventListener("click", () => campaignAicedDialog.close());
+campaignAicedDialog.addEventListener("click", (event) => {
+    if (event.target === campaignAicedDialog) campaignAicedDialog.close();
+});
+generateCampaignProposalButton.addEventListener("click", generateAicedCampaignProposal);
+reviewAicedCampaignButton.addEventListener("click", applyAicedCampaignProposal);
+closePostPickerButton.addEventListener("click", () => postPicker.close());
+postPicker.addEventListener("click", (event) => { if (event.target === postPicker) postPicker.close(); });
+[campaignNameInput, subjectInput, preheaderInput].forEach((input) => input.addEventListener("input", () => {
+    updateCharacterCount(subjectInput, subjectCharacterCount);
+    updateCharacterCount(preheaderInput, preheaderCharacterCount);
+    schedulePreviewRender();
+}));
+desktopPreviewButton.addEventListener("click", () => {
+    emailPreview.classList.remove("email-preview--mobile");
+    desktopPreviewButton.classList.add("preview-devices__button--active");
+    mobilePreviewButton.classList.remove("preview-devices__button--active");
+    desktopPreviewButton.setAttribute("aria-pressed", "true");
+    mobilePreviewButton.setAttribute("aria-pressed", "false");
+});
+editEmailPreviewButton.addEventListener("click", () => {
+    if (isEditingPreview) finishPreviewEditing();
+    else enablePreviewEditing();
+});
+mobilePreviewButton.addEventListener("click", () => {
+    emailPreview.classList.add("email-preview--mobile");
+    mobilePreviewButton.classList.add("preview-devices__button--active");
+    desktopPreviewButton.classList.remove("preview-devices__button--active");
+    mobilePreviewButton.setAttribute("aria-pressed", "true");
+    desktopPreviewButton.setAttribute("aria-pressed", "false");
+});
+sendTestEmailButton.addEventListener("click", sendTestEmail);
+campaignStepButtons.forEach((button) => {
+    button.addEventListener("click", () => setCampaignStep(button.dataset.campaignStep));
+});
+nextCampaignStepButton.addEventListener("click", () => {
+    if (activeCampaignStep === "content") setCampaignStep("recipients");
+    else if (activeCampaignStep === "recipients") setCampaignStep("review");
+    else setCampaignStep("recipients");
+});
+document.querySelector("#recipients-back-button").addEventListener("click", () => setCampaignStep("content"));
+document.querySelector("#recipients-next-button").addEventListener("click", () => setCampaignStep("review"));
+document.querySelector("#review-back-button").addEventListener("click", () => setCampaignStep("recipients"));
+recipientSearchInput.addEventListener("input", () => {
+    window.clearTimeout(recipientSearchTimer);
+    recipientSearchTimer = window.setTimeout(loadRecipients, 250);
+});
+recipientTagFilter.addEventListener("change", loadRecipients);
+recipientList.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-recipient-id]");
+    if (!checkbox) return;
+    const subscriber = visibleRecipients.find((item) => item.id === Number(checkbox.dataset.recipientId));
+    if (!subscriber || subscriber.status !== "active") return;
+    if (checkbox.checked) selectedRecipients.set(subscriber.id, subscriber);
+    else selectedRecipients.delete(subscriber.id);
+    updateAudienceSummary();
+    if (activeCampaignStep === "review") renderReview();
+});
+selectVisibleRecipientsButton.addEventListener("click", () => {
+    visibleRecipients.filter((subscriber) => subscriber.status === "active").forEach((subscriber) => {
+        selectedRecipients.set(subscriber.id, subscriber);
+    });
+    renderRecipients();
+    updateAudienceSummary();
+});
+updateCharacterCount(subjectInput, subjectCharacterCount);
+updateCharacterCount(preheaderInput, preheaderCharacterCount);
+renderSelectedPost();
+renderPreview();

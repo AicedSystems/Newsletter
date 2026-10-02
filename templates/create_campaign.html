@@ -14,7 +14,7 @@
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/create_campaign.css') }}">
 
-    <script src="{{ url_for('static', filename='js/create_campaign.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/create_campaign.js', v='campaign-email-compose-v4') }}" defer></script>
 </head>
 
 <body>
@@ -110,6 +110,10 @@
             </ol>
 
             <div class="campaign-workflow__actions">
+                <button class="campaign-button campaign-button--secondary" id="create-with-aiced-button" type="button">
+                    Create with Aiced
+                </button>
+
                 <button class="campaign-button campaign-button--secondary" id="save-campaign-draft" type="button">
                     Save draft
                 </button>
@@ -134,30 +138,11 @@
                         </button>
                     </div>
 
-                    <article class="selected-post" id="selected-post">
-                        <div class="selected-post__media">
-                            <img class="selected-post__image"
-                                src="{{ url_for('static', filename='images/collov-home-design-qWXGmMRe4so-unsplash.webp') }}"
-                                alt="Modern luxury living room">
-                        </div>
-
+                    <article class="selected-post selected-post--empty" id="selected-post">
                         <div class="selected-post__content">
-                            <p class="selected-post__category">
-                                Market Updates
+                            <p class="selected-post__empty-message">
+                                Choose a published article to build the email preview.
                             </p>
-
-                            <h3 class="selected-post__title">
-                                5 Luxury Home Features Buyers Are Prioritizing in 2026
-                            </h3>
-
-                            <div class="selected-post__meta">
-                                <time datetime="2026-08-05">
-                                    August 5, 2026
-                                </time>
-
-                                <span aria-hidden="true">·</span>
-                                <span>5 min read</span>
-                            </div>
                         </div>
                     </article>
                 </section>
@@ -218,6 +203,10 @@
                         Email preview
                     </h2>
 
+                    <button class="campaign-panel__change-button" id="edit-email-preview" type="button" disabled>
+                        Edit email
+                    </button>
+
                     <div class="preview-devices" aria-label="Preview device">
                         <button class="preview-devices__button preview-devices__button--active"
                             id="desktop-preview-button" type="button" aria-label="Desktop preview" aria-pressed="true">
@@ -239,99 +228,10 @@
                 </div>
 
                 <div class="email-preview-frame">
-                    <article class="email-preview" id="email-preview">
-                        <header class="email-preview__header">
-                            <p class="email-preview__brand">
-                                Inside the Market
-                            </p>
-
-                            <p class="email-preview__brand-subtitle">
-                                Real Estate Network
-                            </p>
-                        </header>
-
-                        <img class="email-preview__hero"
-                            src="{{ url_for('static', filename='images/collov-home-design-qWXGmMRe4so-unsplash.webp') }}"
-                            alt="Modern luxury living room">
-
-                        <div class="email-preview__body">
-                            <p class="email-preview__category">
-                                Market Updates
-                            </p>
-
-                            <h3 class="email-preview__title">
-                                5 Luxury Home Features Buyers Are Prioritizing in 2026
-                            </h3>
-
-                            <p class="email-preview__excerpt">
-                                A look at the top luxury home features buyers are
-                                prioritizing in 2026 and why they matter in today’s
-                                market.
-                            </p>
-
-                            <a class="email-preview__article-link" href="#" tabindex="-1">
-                                Read full article
-                            </a>
-
-                            <div class="email-preview__divider"></div>
-
-                            <section aria-labelledby="email-highlights-title">
-                                <h4 class="email-preview__section-title" id="email-highlights-title">
-                                    What’s inside
-                                </h4>
-
-                                <div class="email-highlights">
-                                    <article class="email-highlight">
-                                        <span class="email-highlight__icon" aria-hidden="true">
-                                            <svg viewBox="0 0 24 24">
-                                                <path d="M3 11 12 4l9 7"></path>
-                                                <path d="M5 10v10h14V10"></path>
-                                            </svg>
-                                        </span>
-
-                                        <h5>Market insights</h5>
-                                        <p>Key trends shaping luxury real estate.</p>
-                                    </article>
-
-                                    <article class="email-highlight">
-                                        <span class="email-highlight__icon" aria-hidden="true">
-                                            <svg viewBox="0 0 24 24">
-                                                <path d="M4 20V12"></path>
-                                                <path d="M10 20V6"></path>
-                                                <path d="M16 20V3"></path>
-                                                <path d="M22 20V9"></path>
-                                            </svg>
-                                        </span>
-
-                                        <h5>Buyer preferences</h5>
-                                        <p>What today’s buyers value most.</p>
-                                    </article>
-
-                                    <article class="email-highlight">
-                                        <span class="email-highlight__icon" aria-hidden="true">
-                                            <svg viewBox="0 0 24 24">
-                                                <path d="M9 18h6"></path>
-                                                <path d="M10 22h4"></path>
-                                                <path d="M8 14a7 7 0 1 1 8 0c-1 .8-1 2-1 2h-6s0-1.2-1-2Z"></path>
-                                            </svg>
-                                        </span>
-
-                                        <h5>Opportunities</h5>
-                                        <p>How to position listings to stand out.</p>
-                                    </article>
-                                </div>
-                            </section>
-                        </div>
-
-                        <footer class="email-preview__footer">
-                            <p>
-                                You’re receiving this email because you subscribed
-                                to Inside the Market.
-                            </p>
-
-                            <a href="#" tabindex="-1">Unsubscribe</a>
-                        </footer>
-                    </article>
+                    <p class="email-preview__empty-message" id="email-preview-empty">
+                        Select a published article to preview the email.
+                    </p>
+                    <iframe class="email-preview" id="email-preview" title="Rendered campaign email preview"></iframe>
                 </div>
             </section>
 
@@ -349,97 +249,117 @@
 
                     <section class="campaign-summary__section">
                         <h3 class="campaign-summary__section-title">Audience</h3>
-
                         <div class="campaign-audience">
-                            <span class="campaign-audience__icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24">
-                                    <circle cx="9" cy="8" r="3"></circle>
-                                    <circle cx="17" cy="10" r="2"></circle>
-                                    <path d="M3 20a6 6 0 0 1 12 0"></path>
-                                    <path d="M15 15a5 5 0 0 1 6 5"></path>
-                                </svg>
-                            </span>
-
-                            <div>
-                                <strong>1,248</strong>
-                                <span>Subscribers</span>
-                            </div>
+                            <div class="campaign-audience__icon" aria-hidden="true">◎</div>
+                            <div><strong id="campaign-audience-count">0 recipients</strong><span id="campaign-audience-context">Only active subscribers are eligible.</span></div>
                         </div>
-
-                        <p class="campaign-summary__help">
-                            This includes all active subscribers.
-                        </p>
                     </section>
 
-                    <section class="campaign-summary__section">
-                        <h3 class="campaign-summary__section-title">
-                            Estimated performance
-                        </h3>
+                    <section class="campaign-summary__section campaign-test-email" aria-labelledby="test-email-title">
+                        <h3 class="campaign-summary__section-title" id="test-email-title">Send a test</h3>
 
-                        <dl class="campaign-metrics">
-                            <div class="campaign-metrics__item">
-                                <dt>Open rate</dt>
-                                <dd>42%</dd>
-                            </div>
-
-                            <div class="campaign-metrics__item">
-                                <dt>Click rate</dt>
-                                <dd>12%</dd>
-                            </div>
-
-                            <div class="campaign-metrics__item">
-                                <dt>Estimated clicks</dt>
-                                <dd>150</dd>
-                            </div>
-
-                            <div class="campaign-metrics__item">
-                                <dt>Estimated unsubscribes</dt>
-                                <dd>12</dd>
-                            </div>
-                        </dl>
+                        <label class="campaign-field__label" for="test-recipient">Test recipient</label>
+                        <input class="campaign-field__control" id="test-recipient" type="email"
+                            autocomplete="email" placeholder="you@example.com">
+                        <button class="send-test-email-button" id="send-test-email-button" type="button">
+                            Send test email
+                        </button>
+                        <p class="campaign-send-status" id="campaign-send-status" aria-live="polite"></p>
                     </section>
-
-                    <fieldset class="campaign-summary__section campaign-schedule">
-                        <legend class="campaign-summary__section-title">Schedule</legend>
-
-                        <label class="campaign-schedule__option">
-                            <input name="schedule" type="radio" value="now" checked>
-                            <span>
-                                <strong>Send now</strong>
-                                <small>Send the campaign immediately</small>
-                            </span>
-                        </label>
-
-                        <label class="campaign-schedule__option">
-                            <input name="schedule" type="radio" value="later">
-                            <span>
-                                <strong>Schedule for later</strong>
-                                <small>Choose a date and time</small>
-                            </span>
-                        </label>
-                    </fieldset>
 
                     <div class="campaign-notice">
                         <span class="campaign-notice__icon" aria-hidden="true">i</span>
                         <p>
-                            Your campaign will be sent only to active
-                            subscribers who haven’t unsubscribed.
+                            Bulk campaign delivery will be available after recipient
+                            handling and unsubscribe support are in place.
                         </p>
                     </div>
 
-                    <button class="send-campaign-button" id="send-campaign-button" type="button">
+                    <button class="send-campaign-button" id="send-campaign-button" type="button" disabled
+                        title="Bulk campaign delivery is not available yet.">
                         <svg aria-hidden="true" viewBox="0 0 24 24">
                             <path d="m22 2-7 20-4-9-9-4Z"></path>
                             <path d="M22 2 11 13"></path>
                         </svg>
-                        Send campaign
+                        Send campaign (coming soon)
                     </button>
-
-                    <p class="campaign-send-status" id="campaign-send-status" aria-live="polite"></p>
                 </section>
             </aside>
         </div>
+
+        <section class="campaign-step-panel" id="campaign-recipients-step" hidden aria-labelledby="campaign-recipients-title">
+            <div class="campaign-step-panel__header">
+                <div>
+                    <h2 id="campaign-recipients-title">Choose recipients</h2>
+                    <p>Select active subscribers for this campaign. Filters only change who is visible.</p>
+                </div>
+                <strong id="selected-recipient-count">0 selected</strong>
+            </div>
+            <div class="campaign-recipient-controls">
+                <label class="visually-hidden" for="campaign-recipient-search">Search active subscribers</label>
+                <input class="campaign-field__control" id="campaign-recipient-search" type="search" placeholder="Search name or email">
+                <label class="visually-hidden" for="campaign-recipient-tag-filter">Filter recipients by tag</label>
+                <select class="campaign-field__control" id="campaign-recipient-tag-filter"><option value="">All tags</option></select>
+                <button class="campaign-button campaign-button--secondary" id="select-visible-recipients" type="button">Select all visible</button>
+            </div>
+            <p class="campaign-recipient-status" id="campaign-recipient-status" aria-live="polite"></p>
+            <div class="campaign-recipient-list" id="campaign-recipient-list"></div>
+            <div class="campaign-step-panel__actions">
+                <button class="campaign-button campaign-button--secondary" id="recipients-back-button" type="button">← Content</button>
+                <button class="campaign-button campaign-button--accent" id="recipients-next-button" type="button">Next: Review &amp; send →</button>
+            </div>
+        </section>
+
+        <section class="campaign-step-panel" id="campaign-review-step" hidden aria-labelledby="campaign-review-title">
+            <div class="campaign-step-panel__header">
+                <div>
+                    <h2 id="campaign-review-title">Review &amp; send</h2>
+                    <p>Review content and audience selection. Bulk delivery is still unavailable.</p>
+                </div>
+            </div>
+            <div class="campaign-review-grid">
+                <section><h3>Content</h3><p id="review-post-title">No post selected</p><p id="review-subject"></p><p id="review-preheader"></p></section>
+                <section><h3>Audience</h3><p id="review-recipient-count">0 recipients selected</p><ul id="review-recipient-list"></ul></section>
+                <section><h3>Email</h3><p>The shared email preview remains available in the Content step.</p></section>
+            </div>
+            <div class="campaign-step-panel__actions">
+                <button class="campaign-button campaign-button--secondary" id="review-back-button" type="button">← Recipients</button>
+            </div>
+        </section>
     </section>
 </main>
+<dialog class="post-picker" id="post-picker" aria-labelledby="post-picker-title">
+    <div class="post-picker__header">
+        <h2 id="post-picker-title">Choose a published article</h2>
+        <button class="post-picker__close" id="close-post-picker" type="button" aria-label="Close article picker">×</button>
+    </div>
+    <p class="post-picker__status" id="post-picker-status" aria-live="polite"></p>
+    <div class="post-picker__list" id="post-picker-list"></div>
+</dialog>
+<dialog class="campaign-aiced-dialog" id="campaign-aiced-dialog" aria-labelledby="campaign-aiced-title">
+    <div class="campaign-aiced-dialog__header">
+        <div>
+            <div class="campaign-aiced-dialog__identity">
+                <img src="{{ url_for('static', filename='images/aicedbot-wave.png') }}" alt="">
+                <span>Aiced Bot</span>
+            </div>
+            <h2 id="campaign-aiced-title">Create a campaign proposal</h2>
+            <p>Describe the campaign you want. Aiced Bot will use only published articles and existing audience tags.</p>
+        </div>
+        <button class="post-picker__close" id="close-campaign-aiced-dialog" type="button" aria-label="Close Aiced Bot">×</button>
+    </div>
+    <label class="campaign-field__label" for="campaign-aiced-request">What should this campaign be about?</label>
+    <textarea class="campaign-field__control campaign-field__control--textarea" id="campaign-aiced-request" rows="3" maxlength="500" placeholder="Example: Create a campaign using the September market update for first-time buyers in Palmdale."></textarea>
+    <div class="campaign-aiced-dialog__actions">
+        <button class="campaign-button campaign-button--accent" id="generate-campaign-proposal" type="button">Generate proposal</button>
+    </div>
+    <p class="campaign-aiced-dialog__status" id="campaign-aiced-status" aria-live="polite"></p>
+    <section class="campaign-aiced-proposal" id="campaign-aiced-proposal" hidden aria-live="polite">
+        <h3>Suggested campaign</h3>
+        <dl id="campaign-aiced-proposal-details"></dl>
+        <p id="campaign-aiced-proposal-rationale"></p>
+        <button class="campaign-button campaign-button--accent" id="review-aiced-campaign" type="button">Review campaign</button>
+    </section>
+</dialog>
 </body>
 </html>

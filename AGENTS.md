@@ -1,52 +1,45 @@
-# Project Instructions
+# Newsletter / Aiced Project Instructions
 
-## Product
-Custom publishing/newsletter platform for a real estate team leader.
+## Product and stack
 
-## Stack
-- Flask
-- Python
-- HTML/CSS
-- Vanilla JavaScript
-- SQLAlchemy
-- SQLite for development
-- PostgreSQL/Supabase planned for production
+Custom publishing and newsletter platform for a real estate team leader.
 
-## Development Method
-Use vertical slices.
+- Flask, SQLAlchemy, Flask-Migrate, PostgreSQL/Supabase
+- HTML, CSS, and vanilla JavaScript
+- Resend for explicitly requested single-recipient test emails
+- OpenAI for human-reviewed Aiced editorial assistance
 
-Do not build unrelated future features.
+## Current architecture
 
-Current Phase:
-Phase 1 — Publishing Foundation
+- `Post` is currently the only application model and `public.posts` is the only application table.
+- Posts support structured content blocks, publishing, public article pages, cover images, and previews.
+- Campaigns currently select a published post, render shared email HTML/text, allow browser-only campaign edits, and can send one explicit test email.
+- Aiced returns validated structured article suggestions. It never publishes or sends on its own.
+- `localStorage` remains only for UI preferences and legacy demo/draft behavior; published posts use the Flask API and Supabase.
 
-## Completed
-- Dashboard UI
-- Create Post UI
-- Campaign UI
-- Local publishing MVP
-- Drafts in localStorage
-- Published posts appear in dashboard
-- Article detail modal
+## V1 direction
 
-## Current Goal
-Replace localStorage persistence with Flask + SQLAlchemy.
+The approved V1 plan is in `docs/v1-roadmap.md`:
 
-## Database Strategy
+1. Subscriber Foundation
+2. Campaign Persistence
+3. Audience Selection
+4. Production Sending
+5. Aiced Assistant
+6. Analytics and Reliability
 
-- SQLAlchemy is the ORM.
-- SQLite is temporary and used only for initial local development/learning.
-- Production database will be PostgreSQL hosted with Supabase.
-- Do not introduce SQLite-specific application logic.
-- Do not migrate to PostgreSQL/Supabase until explicitly requested.
+## Safety rules
 
-## Rules
-- Preserve existing UI unless explicitly asked.
-- Do not rewrite files unnecessarily.
-- Reuse existing functions.
-- Prefer small modules.
-- Explain architectural changes.
-- Do not add dependencies without explaining why.
-- Never implement future phases unless requested.
-- Run relevant tests/checks after modifications.
-- Report every file changed.
+- Never print, commit, or expose secrets, credentials, full database URLs, or API keys.
+- Supabase is persistent. Confirm the intended project before database work; never access another client's database.
+- Review migrations before applying them. Do not use `db.create_all()` or destructive schema commands on Supabase.
+- Do not bulk-send, auto-send, or auto-publish without an explicitly approved vertical slice.
+- Resend is not the system of record. Do not add provider syncing or webhook behavior unless requested.
+- Aiced output requires human review and approval before publishing or sending.
+- Unsubscribed or suppressed subscribers must never be selected for sending.
+
+## Working method
+
+- Work in small, reviewed vertical slices and preserve the existing UI unless a change is requested.
+- Reuse existing helpers and modules; avoid unnecessary rewrites or dependencies.
+- Run proportionate checks after code changes and report every file changed.

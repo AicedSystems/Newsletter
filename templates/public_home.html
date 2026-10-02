@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#102b3f">
+    <title>Inside the Market | Antelope Valley Real Estate</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/public_site.css') }}">
+    <script src="{{ url_for('static', filename='js/public_home.js') }}" defer></script>
+</head>
+<body class="public-home">
+    <header class="publication-header">
+        <a class="publication-mark" href="{{ url_for('public_home') }}">INSIDE <span>THE MARKET</span></a>
+        <nav aria-label="Publication navigation"><a href="#latest">Latest</a><a href="#subscribe">Subscribe</a></nav>
+    </header>
+    <main>
+        {% if featured_post %}
+        <section class="featured-story" id="latest" aria-labelledby="latest-title">
+            <article class="featured-story__card{% if not featured_post.featured_image %} featured-story__card--without-image{% endif %}">
+                {% if featured_post.featured_image %}<img class="featured-story__image" src="{{ featured_post.featured_image }}" alt="">{% endif %}
+                <div class="featured-story__overlay">
+                    <p class="eyebrow">Featured · {{ featured_post.category|replace('-', ' ') }}</p>
+                    <h1 id="latest-title"><a href="{{ url_for('public_article', post_id=featured_post.id) }}">{{ featured_post.title }}</a></h1>
+                    {% if featured_post.excerpt %}<p class="article-excerpt">{{ featured_post.excerpt }}</p>{% endif %}
+                    <div class="article-meta"><span>Eric Cuss · Antelope Valley Real Estate</span>{% if featured_post.published_at %}<time datetime="{{ featured_post.published_at.isoformat() }}">{{ featured_post.published_at.strftime('%B %-d, %Y') }}</time>{% endif %}</div>
+                    <a class="featured-story__link" href="{{ url_for('public_article', post_id=featured_post.id) }}" aria-label="Read {{ featured_post.title }}">Read article <span aria-hidden="true">→</span></a>
+                </div>
+            </article>
+        </section>
+
+        {% if posts %}
+        <section class="article-collection" aria-labelledby="more-articles-title"><div class="article-collection__inner">
+            <div class="section-heading"><p class="eyebrow">More from Inside the Market</p><h2 id="more-articles-title">Recent market insight.</h2></div>
+            <div class="article-filters" aria-label="Filter articles by category">
+                <button class="article-filter article-filter--active" type="button" data-category-filter="all" aria-pressed="true">All articles</button>
+                {% for category in categories %}<button class="article-filter" type="button" data-category-filter="{{ category }}" aria-pressed="false">{{ category|replace('-', ' ') }}</button>{% endfor %}
+            </div>
+            <p class="article-filter__status" id="article-filter-status" aria-live="polite"></p>
+            <div class="article-grid" id="article-grid">
+                {% for post in posts %}
+                <article class="article-card" data-post-category="{{ post.category }}">
+                    {% if post.featured_image %}<a class="article-card__media" href="{{ url_for('public_article', post_id=post.id) }}"><img src="{{ post.featured_image }}" alt=""></a>{% endif %}
+                    <div class="article-card__content"><p class="article-category">{{ post.category|replace('-', ' ') }}</p><h3><a href="{{ url_for('public_article', post_id=post.id) }}">{{ post.title }}</a></h3>{% if post.excerpt %}<p>{{ post.excerpt }}</p>{% endif %}<div class="article-meta">{% if post.published_at %}<time datetime="{{ post.published_at.isoformat() }}">{{ post.published_at.strftime('%B %-d, %Y') }}</time>{% endif %}<a href="{{ url_for('public_article', post_id=post.id) }}" aria-label="Read {{ post.title }}">Read article →</a></div></div>
+                </article>
+                {% endfor %}
+            </div>
+        </div></section>
+        {% endif %}
+        {% else %}
+        <section class="public-empty"><p class="eyebrow">Inside the Market</p><h2>New articles are on the way.</h2><p>Check back soon for local real estate insight from the Antelope Valley.</p></section>
+        {% endif %}
+    </main>
+    <footer class="publication-footer" id="subscribe"><p class="eyebrow">Stay in the know</p><h2>Get Inside the Market.</h2><p>Local real estate insight, delivered when there is something worth reading.</p><a class="public-button public-button--light" href="#subscribe">Subscribe to updates</a><small>© {{ current_year|default(2026) }} Inside the Market · Eric Cuss</small></footer>
+</body>
+</html>
