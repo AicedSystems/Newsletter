@@ -7,7 +7,10 @@ from io import BytesIO
 from functools import wraps
 from secrets import compare_digest
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlparse
+from urllib.request import Request, urlopen
+from uuid import uuid4
 
 from flask import Flask, jsonify, redirect, render_template, request, send_file
 from flask_migrate import Migrate
@@ -149,6 +152,8 @@ EMBEDDED_IMAGE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 MAXIMUM_EMBEDDED_IMAGE_BYTES = 5 * 1024 * 1024
+MAXIMUM_ARTICLE_IMAGE_BYTES = 5 * 1024 * 1024
+SUPABASE_ARTICLE_IMAGE_BUCKET = "article-images"
 MAXIMUM_CAMPAIGN_SUBJECT_CHARACTERS = 200
 MAXIMUM_CAMPAIGN_PREHEADER_CHARACTERS = 120
 MAXIMUM_CAMPAIGN_NAME_CHARACTERS = 100
@@ -236,6 +241,86 @@ def is_embedded_image(value):
 
 def is_image_source(value):
     return is_web_url(value) or is_embedded_image(value)
+
+
+def identify_article_image(image_bytes):
+    if image_bytes.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg", "jpg"
+    if image_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png", "png"
+    if (
+        len(image_bytes) >= 12
+        and image_bytes[:4] == b"RIFF"
+        and image_bytes[8:12] == b"WEBP"
+    ):
+        return "image/webp", "webp"
+    return None, None
+
+
+def validate_article_image_upload(uploaded_file):
+    if uploaded_file is None or not uploaded_file.filename:
+        return None, None, None, "Choose an image to upload."
+
+    image_bytes = uploaded_file.read(MAXIMUM_ARTICLE_IMAGE_BYTES + 1)
+    if not image_bytes:
+        return None, None, None, "The image file is empty."
+    if len(image_bytes) > MAXIMUM_ARTICLE_IMAGE_BYTES:
+        return None, None, None, "Images must be 5 MB or smaller."
+
+    content_type, extension = identify_article_image(image_bytes)
+    if content_type is None:
+        return None, None, None, "Choose a valid JPEG, PNG, or WebP image."
+
+    return image_bytes, content_type, extension, None
+
+
+def get_supabase_article_image_config():
+    supabase_url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+    service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "").strip()
+    parsed_url = urlparse(supabase_url)
+
+    if (
+        parsed_url.scheme != "https"
+        or not parsed_url.netloc
+        or not service_role_key
+        or bucket != SUPABASE_ARTICLE_IMAGE_BUCKET
+    ):
+        return None, "Article image uploads are not configured on this server."
+
+    return (supabase_url, service_role_key, bucket), None
+
+
+def upload_article_image_to_supabase(image_bytes, content_type, extension):
+    storage_config, config_error = get_supabase_article_image_config()
+    if config_error:
+        return None, config_error, 503
+
+    supabase_url, service_role_key, bucket = storage_config
+    object_path = f"posts/{datetime.utcnow():%Y/%m}/{uuid4()}.{extension}"
+    encoded_object_path = quote(object_path, safe="/")
+    storage_url = f"{supabase_url}/storage/v1/object/{quote(bucket, safe='')}/{encoded_object_path}"
+    upload_request = Request(
+        storage_url,
+        data=image_bytes,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {service_role_key}",
+            "apikey": service_role_key,
+            "Content-Type": content_type,
+            "x-upsert": "false",
+        },
+    )
+
+    try:
+        with urlopen(upload_request, timeout=20) as response:
+            if response.status not in {200, 201}:
+                return None, "Article image upload could not be completed.", 502
+    except (HTTPError, URLError, TimeoutError):
+        return None, "Article image upload could not be completed.", 502
+
+    public_url = f"{supabase_url}/storage/v1/object/public/{quote(bucket, safe='')}/{encoded_object_path}"
+    return public_url, None, 201
 
 
 def is_youtube_url(value):
@@ -898,6 +983,24 @@ def published_post_cover(post_id):
         mimetype=header.split(";", 1)[0].removeprefix("data:"),
         max_age=3600,
     )
+
+
+@app.post("/api/uploads/article-image")
+@require_editor_auth
+def upload_article_image():
+    image_bytes, content_type, extension, validation_error = validate_article_image_upload(
+        request.files.get("image")
+    )
+    if validation_error:
+        return jsonify({"message": validation_error}), 400
+
+    public_url, upload_error, status_code = upload_article_image_to_supabase(
+        image_bytes, content_type, extension
+    )
+    if upload_error:
+        return jsonify({"message": upload_error}), status_code
+
+    return jsonify({"url": public_url}), 201
 
 
 @app.get("/")

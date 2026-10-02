@@ -1,0 +1,87 @@
+We need to productionize image storage for the existing Flask/Supabase CMS.
+
+IMPORTANT:
+This is an INSPECTION-ONLY step.
+Do not modify files, create migrations, create Supabase buckets, upload files,
+change environment variables, or refactor anything yet.
+
+Context:
+- The application is deployed on Render.
+- PostgreSQL is hosted on Supabase.
+- Public articles now run at /blog/<post_id>.
+- Article content uses the existing content_blocks system.
+- Images appear to work locally but are not persisting/rendering correctly in production.
+- There is currently no Supabase Storage bucket configured for this project.
+- We want Supabase Storage to become the durable source for article images.
+- The database should ultimately store image URLs/paths, NOT image binary/base64 data.
+- Existing published posts must not be broken.
+
+Inspect ONLY the files directly involved in:
+1. article image selection/upload in the post editor,
+2. how image blocks are represented in content_blocks,
+3. featured_image handling,
+4. saving posts,
+5. rendering images on public articles,
+6. rendering images in emails,
+7. existing Supabase configuration/client code.
+
+Do not crawl unrelated parts of the repository.
+
+Report:
+
+A. CURRENT IMAGE FLOW
+Trace exactly what happens today from:
+user selects image
+→ browser JavaScript
+→ Flask/API
+→ Post model/content_blocks
+→ public article
+→ email renderer.
+
+B. CURRENT STORAGE FORMAT
+Show examples of the current values stored for:
+- featured_image
+- image content blocks
+
+Tell me whether each is:
+- base64/data URL,
+- local filesystem path,
+- external URL,
+- or something else.
+
+C. PRODUCTION FAILURE
+Explain why the current approach would fail or be unreliable on Render.
+
+D. SUPABASE STORAGE PLAN
+Propose the smallest safe implementation using a bucket named:
+
+article-images
+
+Preferred architecture:
+browser selects image
+→ authenticated Flask upload endpoint
+→ Flask validates image
+→ Supabase Storage upload
+→ Flask returns storage URL/path
+→ editor stores URL in existing featured_image/content_blocks
+→ public article + email renderer use that URL.
+
+Include:
+- which existing files would need modification
+- whether any new Python dependency is actually necessary
+- required environment variable NAMES only (never values)
+- recommended bucket public/private setting for publicly displayed newsletter images
+- safe file types and reasonable size limit
+- unique object naming strategy
+- whether old base64/local images require migration or can remain backward-compatible temporarily.
+
+E. SECURITY
+The public website must be able to READ article images.
+Only authenticated admin/editor flows should be able to UPLOAD them.
+Do not expose a Supabase service-role key to browser JavaScript.
+
+F. NEXT SLICE
+Recommend one bounded implementation step we can give Codex after I approve the plan.
+
+Do not implement anything yet.
+Report findings and stop.

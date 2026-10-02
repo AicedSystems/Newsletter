@@ -83,6 +83,7 @@ const aiAssistantStatusMessage = document.querySelector("#ai-assistant-status-me
 const undoAiAssistantButton = document.querySelector("#undo-ai-assistant-button");
 
 let featuredImageDataUrl = null;
+let isFeaturedImageUploading = false;
 let isPublishing = false;
 let contentBlocks = [];
 let draggedBlockIndex = null;
@@ -1768,6 +1769,11 @@ function populatePostForm(post) {
 }
 
 function saveDraft() {
+    if (isFeaturedImageUploading) {
+        showPublishingStatus("Wait for the cover image upload to finish before saving.");
+        return;
+    }
+
     const draft = getPostData("draft");
 
     try {
@@ -1790,7 +1796,10 @@ function saveDraft() {
 }
 
 async function publishPost() {
-    if (isPublishing || !postForm.reportValidity()) {
+    if (isPublishing || isFeaturedImageUploading || !postForm.reportValidity()) {
+        if (isFeaturedImageUploading) {
+            showPublishingStatus("Wait for the cover image upload to finish before publishing.");
+        }
         return;
     }
 
@@ -1866,15 +1875,34 @@ async function sendPost(postData) {
 }
 
 async function setFeaturedImageFile(selectedFile) {
+    const previousImageUrl = featuredImageDataUrl;
     try {
         validateImageFile(selectedFile);
-        featuredImageDataUrl = await readImageFile(selectedFile);
+        isFeaturedImageUploading = true;
+        publishPostButton.disabled = true;
+        saveDraftButton.disabled = true;
+        showPublishingStatus("Uploading cover image…");
+        const formData = new FormData();
+        formData.append("image", selectedFile);
+        const response = await fetch("/api/uploads/article-image", {
+            method: "POST",
+            body: formData
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || typeof result.url !== "string" || !result.url.startsWith("https://")) {
+            throw new Error(result.message || "The cover image could not be uploaded.");
+        }
+        featuredImageDataUrl = result.url;
         renderPostPreview(getPostData());
-        showPublishingStatus("Featured image ready to publish.");
+        showPublishingStatus("Cover image uploaded and ready to publish.");
     } catch (error) {
-        featuredImageDataUrl = null;
+        featuredImageDataUrl = previousImageUrl;
         showPublishingStatus(error.message);
         console.error(error);
+    } finally {
+        isFeaturedImageUploading = false;
+        publishPostButton.disabled = isPublishing;
+        saveDraftButton.disabled = false;
     }
 }
 
