@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#050b14">
+    <title>Archived articles | Rise</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="{{ url_for('static', filename='js/archived_posts.js') }}" defer></script>
+</head>
+<body>
+    <main class="archive-page" id="main-content">
+        <a class="archive-page__back" href="{{ url_for('dashboard') }}">← Back to dashboard</a>
+        <header class="archive-page__header">
+            <div>
+                <p class="post-feed__eyebrow">Post management</p>
+                <h1>Archived articles</h1>
+                <p>Archived articles are hidden from the public blog. Restore, edit, or permanently delete them here.</p>
+            </div>
+        </header>
+        <p class="archive-page__status" id="archive-status" aria-live="polite">Loading archived articles…</p>
+        <section class="archive-page__list" id="archive-list" aria-label="Archived articles"></section>
+    </main>
+</body>
+</html>

@@ -108,6 +108,8 @@ function mapApiPostToFeedPost(post) {
         author: "Eric Cuss",
         publishedDate: post.publishedDate,
         displayDate: formatPublishedDate(post.publishedDate),
+        featuredImage: post.featuredImage,
+        rawPost: post,
         url: `/blog/${post.id}`
     };
 }
@@ -117,9 +119,35 @@ const postList = document.querySelector("#post-list");
 const postTemplate = document.querySelector("#post-card-template");
 const loadMoreButton = document.querySelector("#load-more-posts");
 const postLoadStatus = document.querySelector("#post-load-status");
+const featuredPost = document.querySelector("#featured-post");
+const featuredPostLink = document.querySelector("#featured-post-link");
+const featuredPostMedia = featuredPost.querySelector(".featured-post__media");
+const featuredPostImage = document.querySelector("#featured-post-image");
+const featuredPostCategory = document.querySelector("#featured-post-category");
+const featuredPostTitle = document.querySelector("#featured-post-title");
+const featuredPostSummary = document.querySelector("#featured-post-summary");
+const featuredPostDate = document.querySelector("#featured-post-date");
+const deleteFeaturedPostButton = document.querySelector("#delete-featured-post");
+const selectAllPostsButton = document.querySelector("#select-all-posts");
+const editSelectedPostButton = document.querySelector("#edit-selected-post");
+const archiveSelectedPostsButton = document.querySelector("#archive-selected-posts");
+const deleteSelectedPostsButton = document.querySelector("#delete-selected-posts");
 
 const postsPerPage = 3;
 let visiblePostCount = 0;
+const selectedPostIds = new Set();
+
+function updatePostActions() {
+    const selectedCount = selectedPostIds.size;
+    const selectableCount = Math.max(posts.length - 1, 0);
+    selectAllPostsButton.disabled = selectableCount === 0;
+    selectAllPostsButton.textContent = selectedCount === selectableCount && selectableCount
+        ? "Clear selection"
+        : "Select all";
+    editSelectedPostButton.disabled = selectedCount !== 1;
+    archiveSelectedPostsButton.disabled = selectedCount === 0;
+    deleteSelectedPostsButton.disabled = selectedCount === 0;
+}
 
 function createPostCard(post) {
     const cardFragment = postTemplate.content.cloneNode(true);
@@ -130,6 +158,7 @@ function createPostCard(post) {
     const summary = cardFragment.querySelector(".post-card__summary");
     const author = cardFragment.querySelector(".post-card__author");
     const date = cardFragment.querySelector(".post-card__date");
+    const checkbox = cardFragment.querySelector(".post-card__select input");
 
     link.href = post.url;
 
@@ -139,8 +168,120 @@ function createPostCard(post) {
     author.textContent = post.author;
     date.dateTime = post.publishedDate;
     date.textContent = post.displayDate;
+    checkbox.checked = selectedPostIds.has(post.id);
+    checkbox.addEventListener("change", () => {
+        if (checkbox.checked) selectedPostIds.add(post.id);
+        else selectedPostIds.delete(post.id);
+        updatePostActions();
+    });
 
     return cardFragment;
+}
+
+function renderFeaturedPost(post) {
+    if (!post) {
+        featuredPost.hidden = true;
+        return;
+    }
+
+    featuredPost.hidden = false;
+    featuredPostLink.href = post.url;
+    featuredPostCategory.textContent = post.category;
+    featuredPostTitle.textContent = post.title;
+    featuredPostSummary.textContent = post.summary || "";
+    featuredPostDate.dateTime = post.publishedDate || "";
+    featuredPostDate.textContent = post.displayDate;
+    featuredPostMedia.hidden = !post.featuredImage;
+    featuredPostImage.hidden = !post.featuredImage;
+    if (post.featuredImage) {
+        featuredPostImage.src = post.featuredImage;
+        featuredPostImage.alt = `Featured image for ${post.title}`;
+    } else {
+        featuredPostImage.removeAttribute("src");
+    }
+    deleteFeaturedPostButton.hidden = false;
+    deleteFeaturedPostButton.onclick = () => deleteDashboardPost(post.id, deleteFeaturedPostButton);
+}
+
+function renderDashboardPosts() {
+    postList.replaceChildren();
+    [...selectedPostIds].forEach((id) => {
+        if (!posts.some((post) => post.id === id)) selectedPostIds.delete(id);
+    });
+    visiblePostCount = posts.length ? 1 : 0;
+    renderFeaturedPost(posts[0]);
+    loadMoreButton.hidden = posts.length <= 1;
+    if (posts.length > 1) loadMorePosts();
+    if (!posts.length) postLoadStatus.textContent = "No published posts yet.";
+    updatePostActions();
+}
+
+async function deleteDashboardPost(postId, button) {
+    const post = posts.find((item) => item.id === postId);
+    if (!post || !window.confirm(`Delete “${post.title}”? This cannot be undone.`)) return;
+
+    button.disabled = true;
+    try {
+        const response = await fetch(`/api/posts/${postId}`, { method: "DELETE" });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.message || "Post could not be deleted.");
+        posts.splice(posts.findIndex((item) => item.id === postId), 1);
+        selectedPostIds.delete(postId);
+        postLoadStatus.textContent = "Post deleted.";
+        renderDashboardPosts();
+    } catch (error) {
+        button.disabled = false;
+        postLoadStatus.textContent = error.message || "Post could not be deleted.";
+        console.error("Unable to delete post:", error);
+    }
+}
+
+async function archiveSelectedPosts() {
+    const selectedPosts = posts.filter((post) => selectedPostIds.has(post.id));
+    if (!selectedPosts.length || !window.confirm(`Archive ${selectedPosts.length} selected post${selectedPosts.length === 1 ? "" : "s"}?`)) return;
+
+    archiveSelectedPostsButton.disabled = true;
+    try {
+        for (const post of selectedPosts) {
+            const response = await fetch(`/api/posts/${post.id}`, {
+                method: "PATCH",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({status: "archived"})
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.message || "A selected post could not be archived.");
+        }
+        selectedPosts.forEach((post) => posts.splice(posts.indexOf(post), 1));
+        selectedPostIds.clear();
+        postLoadStatus.textContent = "Selected posts archived.";
+        renderDashboardPosts();
+    } catch (error) {
+        postLoadStatus.textContent = error.message || "Posts could not be archived.";
+    } finally {
+        updatePostActions();
+    }
+}
+
+async function deleteSelectedPosts() {
+    const selectedPosts = posts.filter((post) => selectedPostIds.has(post.id));
+    if (!selectedPosts.length || !window.confirm(`Permanently delete ${selectedPosts.length} selected post${selectedPosts.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
+
+    deleteSelectedPostsButton.disabled = true;
+    try {
+        for (const post of selectedPosts) {
+            const response = await fetch(`/api/posts/${post.id}`, {method: "DELETE"});
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.message || "A selected post could not be deleted.");
+        }
+        selectedPosts.forEach((post) => posts.splice(posts.indexOf(post), 1));
+        selectedPostIds.clear();
+        postLoadStatus.textContent = "Selected posts deleted.";
+        renderDashboardPosts();
+    } catch (error) {
+        postLoadStatus.textContent = error.message || "Posts could not be deleted.";
+    } finally {
+        updatePostActions();
+    }
 }
 
 function loadMorePosts() {
@@ -166,6 +307,19 @@ function loadMorePosts() {
 }
 
 loadMoreButton.addEventListener("click", loadMorePosts);
+selectAllPostsButton.addEventListener("click", () => {
+    const selectablePosts = posts.slice(1);
+    const shouldClear = selectablePosts.length && selectedPostIds.size === selectablePosts.length;
+    selectedPostIds.clear();
+    if (!shouldClear) selectablePosts.forEach((post) => selectedPostIds.add(post.id));
+    renderDashboardPosts();
+});
+editSelectedPostButton.addEventListener("click", () => {
+    const [postId] = selectedPostIds;
+    if (postId) window.location.assign(`/posts/new/build?edit=${postId}`);
+});
+archiveSelectedPostsButton.addEventListener("click", archiveSelectedPosts);
+deleteSelectedPostsButton.addEventListener("click", deleteSelectedPosts);
 
 async function loadPublishedPosts() {
     try {
@@ -176,14 +330,13 @@ async function loadPublishedPosts() {
         }
 
         const apiPosts = await response.json();
-        posts.push(...apiPosts.map(mapApiPostToFeedPost), ...demoPosts);
+        posts.push(...apiPosts.map(mapApiPostToFeedPost));
     } catch (error) {
         console.error("Unable to load published posts:", error);
-        posts.push(...demoPosts);
         postLoadStatus.textContent = "Published posts could not be loaded.";
     }
 
-    loadMorePosts();
+    renderDashboardPosts();
 }
 
 loadPublishedPosts();

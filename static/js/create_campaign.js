@@ -36,10 +36,13 @@ const closeCampaignAicedDialogButton = document.querySelector("#close-campaign-a
 const campaignAicedRequest = document.querySelector("#campaign-aiced-request");
 const generateCampaignProposalButton = document.querySelector("#generate-campaign-proposal");
 const campaignAicedStatus = document.querySelector("#campaign-aiced-status");
+const campaignAicedPrompt = document.querySelector("#campaign-aiced-prompt");
 const campaignAicedProposal = document.querySelector("#campaign-aiced-proposal");
-const campaignAicedProposalDetails = document.querySelector("#campaign-aiced-proposal-details");
-const campaignAicedProposalRationale = document.querySelector("#campaign-aiced-proposal-rationale");
-const reviewAicedCampaignButton = document.querySelector("#review-aiced-campaign");
+const editAicedPromptButton = document.querySelector("#edit-aiced-prompt");
+const regenerateAicedProposalButton = document.querySelector("#regenerate-aiced-proposal");
+const createAicedArticleButton = document.querySelector("#create-article-review-campaign");
+const aicedDraftStatus = document.querySelector("#aiced-draft-status");
+const editAicedDraftLink = document.querySelector("#edit-aiced-draft-link");
 
 const supportedThemes = new Set(["midnight", "obsidian", "sage"]);
 let selectedPost = null;
@@ -50,9 +53,11 @@ let activeCampaignStep = "content";
 let recipientSearchTimer = null;
 let visibleRecipients = [];
 let availableRecipientTags = [];
-let pendingAicedProposal = null;
-let aicedAudienceTags = [];
 const selectedRecipients = new Map();
+let pendingMarketingPackage = null;
+let isGeneratingMarketingPackage = false;
+let isCreatingAicedDraft = false;
+let createdAicedDraft = null;
 
 function applyTheme(themeName) {
     if (!supportedThemes.has(themeName)) return;
@@ -84,9 +89,7 @@ function updateAudienceSummary() {
     const count = selectedRecipients.size;
     const selectedTag = recipientTagFilter.options[recipientTagFilter.selectedIndex]?.text;
     audienceCount.textContent = `${count} recipient${count === 1 ? "" : "s"}`;
-    audienceContext.textContent = aicedAudienceTags.length
-        ? `Aiced audience: ${aicedAudienceTags.join(" + ")} · Only active subscribers are eligible.`
-        : selectedTag && recipientTagFilter.value
+    audienceContext.textContent = selectedTag && recipientTagFilter.value
         ? `${selectedTag} filter · Only active subscribers are eligible.`
         : "Only active subscribers are eligible.";
     selectedRecipientCount.textContent = `${count} selected`;
@@ -97,103 +100,122 @@ function setAicedCampaignStatus(message, isError = false) {
     campaignAicedStatus.classList.toggle("campaign-aiced-dialog__status--error", isError);
 }
 
-function renderAicedCampaignProposal(proposal, post) {
-    campaignAicedProposalDetails.replaceChildren();
-    const entries = [
-        ["Article", post.title],
-        ["Campaign", proposal.campaignName],
-        ["Subject", proposal.subject],
-        ["Preheader", proposal.preheader],
-        ["Audience", proposal.audience.tags.length ? proposal.audience.tags.join(" + ") : "All active subscribers"],
-        ["Eligible", `${proposal.eligibleRecipientCount} active recipient${proposal.eligibleRecipientCount === 1 ? "" : "s"}`],
-    ];
-    entries.forEach(([label, value]) => {
-        const term = document.createElement("dt");
-        term.textContent = label;
-        const description = document.createElement("dd");
-        description.textContent = value;
-        campaignAicedProposalDetails.append(term, description);
-    });
-    campaignAicedProposalRationale.textContent = proposal.audienceRationale;
-    campaignAicedProposal.hidden = false;
+function setAicedProposalMode(mode) {
+    const isReview = mode === "review";
+    campaignAicedPrompt.hidden = isReview;
+    campaignAicedProposal.hidden = !isReview;
 }
 
-async function generateAicedCampaignProposal() {
+function titleCase(value) {
+    return String(value || "").replaceAll("-", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function renderAicedMarketingPackage(proposal) {
+    const { article, campaign, audience } = proposal;
+    document.querySelector("#aiced-article-category").textContent = titleCase(article.category);
+    document.querySelector("#aiced-article-title").textContent = article.title;
+    document.querySelector("#aiced-article-excerpt").textContent = article.excerpt;
+    const articleTags = document.querySelector("#aiced-article-tags");
+    articleTags.replaceChildren(...article.tags.map((tag) => {
+        const item = document.createElement("li");
+        item.textContent = tag;
+        return item;
+    }));
+    const articlePreview = document.querySelector("#aiced-article-preview");
+    articlePreview.replaceChildren(...article.contentBlocks
+        .filter((block) => block.type !== "cta")
+        .map((block) => {
+            const element = document.createElement(block.type === "heading" ? "strong" : "p");
+            element.textContent = block.text;
+            return element;
+        }));
+    const cta = article.contentBlocks.find((block) => block.type === "cta");
+    document.querySelector("#aiced-cta-headline").textContent = cta.headline;
+    document.querySelector("#aiced-cta-body").textContent = cta.body;
+    document.querySelector("#aiced-cta-button-label").textContent = cta.buttonLabel;
+    document.querySelector("#aiced-cta-action-type").textContent = titleCase(cta.actionType);
+    document.querySelector("#aiced-cta-intent").textContent = titleCase(cta.intent);
+    document.querySelector("#aiced-campaign-name").textContent = campaign.name;
+    document.querySelector("#aiced-campaign-subject").textContent = campaign.subject;
+    document.querySelector("#aiced-campaign-preheader").textContent = campaign.preheader;
+    document.querySelector("#aiced-audience-tags").textContent = audience.tags.length
+        ? audience.tags.join(" + ")
+        : "All active subscribers";
+    document.querySelector("#aiced-audience-rationale").textContent = audience.rationale;
+    document.querySelector("#aiced-audience-count").textContent = `${audience.eligibleRecipientCount} eligible recipient${audience.eligibleRecipientCount === 1 ? "" : "s"}`;
+    createAicedArticleButton.disabled = Boolean(createdAicedDraft);
+    setAicedProposalMode("review");
+}
+
+async function createAicedArticleDraft() {
+    if (isCreatingAicedDraft || createdAicedDraft) return;
+    if (!pendingMarketingPackage) {
+        setAicedCampaignStatus("Generate and review an Aiced proposal before creating a draft.", true);
+        return;
+    }
+
+    isCreatingAicedDraft = true;
+    createAicedArticleButton.disabled = true;
+    setAicedCampaignStatus("Creating your draft article…");
+    try {
+        const response = await fetch("/api/aiced/article-campaign-handoff", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(pendingMarketingPackage),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !Number.isInteger(result.postId) || !result.workflowToken) {
+            throw new Error(result.message || "Aiced Bot could not create the draft article.");
+        }
+
+        createdAicedDraft = result;
+        const destination = `/posts/new/build?edit=${encodeURIComponent(result.postId)}&workflow=${encodeURIComponent(result.workflowToken)}`;
+        editAicedDraftLink.href = destination;
+        aicedDraftStatus.hidden = false;
+        createAicedArticleButton.textContent = "Draft created";
+        setAicedCampaignStatus("Draft created. Open it to review and edit the article.");
+    } catch (error) {
+        createAicedArticleButton.disabled = false;
+        console.error("Unable to create an Aiced campaign draft:", error);
+        setAicedCampaignStatus(error.message || "Aiced Bot could not create the draft article.", true);
+    } finally {
+        isCreatingAicedDraft = false;
+    }
+}
+
+async function generateAicedMarketingPackage() {
+    if (isGeneratingMarketingPackage) return;
     const campaignRequest = campaignAicedRequest.value.trim();
     if (!campaignRequest) {
-        setAicedCampaignStatus("Describe the campaign you would like Aiced Bot to create.", true);
+        setAicedCampaignStatus("Describe what you would like Aiced Bot to create.", true);
         campaignAicedRequest.focus();
         return;
     }
 
+    isGeneratingMarketingPackage = true;
     generateCampaignProposalButton.disabled = true;
-    campaignAicedProposal.hidden = true;
-    pendingAicedProposal = null;
-    setAicedCampaignStatus("Aiced Bot is creating your campaign proposal…");
+    regenerateAicedProposalButton.disabled = true;
+    setAicedCampaignStatus("Aiced Bot is preparing your article and campaign proposal…");
     try {
-        const response = await fetch("/api/campaigns/aiced-proposal", {
+        const response = await fetch("/api/aiced/marketing-package", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ request: campaignRequest }),
         });
         const proposal = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(proposal.message || "Aiced Bot could not create a proposal.");
-
-        const postsResponse = await fetch("/api/posts");
-        const posts = await postsResponse.json().catch(() => []);
-        const post = Array.isArray(posts) ? posts.find((item) => item.id === proposal.postId) : null;
-        if (!postsResponse.ok || !post) throw new Error("The proposed article is no longer available. Please try again.");
-
-        pendingAicedProposal = { proposal, post };
-        renderAicedCampaignProposal(proposal, post);
-        setAicedCampaignStatus("Proposal ready. Review it before applying it to this campaign.");
+        if (!proposal.article || !proposal.campaign || !proposal.audience || !Array.isArray(proposal.article.contentBlocks)) {
+            throw new Error("Aiced Bot returned an incomplete proposal. Please try again.");
+        }
+        pendingMarketingPackage = proposal;
+        renderAicedMarketingPackage(proposal);
+        setAicedCampaignStatus("Proposal ready to review.");
     } catch (error) {
         setAicedCampaignStatus(error.message || "Aiced Bot could not create a proposal.", true);
     } finally {
+        isGeneratingMarketingPackage = false;
         generateCampaignProposalButton.disabled = false;
-    }
-}
-
-async function applyAicedCampaignProposal() {
-    if (!pendingAicedProposal) return;
-    const { proposal, post } = pendingAicedProposal;
-    reviewAicedCampaignButton.disabled = true;
-    try {
-        const response = await fetch("/api/subscribers?status=active");
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result.message || "Active subscribers could not be loaded.");
-
-        const subscribersById = new Map((result.subscribers || []).map((subscriber) => [subscriber.id, subscriber]));
-        selectedRecipients.clear();
-        (proposal.eligibleRecipientIds || []).forEach((id) => {
-            const subscriber = subscribersById.get(id);
-            if (subscriber) selectedRecipients.set(id, subscriber);
-        });
-        visibleRecipients = result.subscribers || [];
-        availableRecipientTags = result.availableTags || [];
-        renderRecipientTagFilter();
-        renderRecipients();
-
-        selectedPost = post;
-        campaignEdits = {
-            headline: post.title,
-            summary: post.excerpt,
-            coverImageUrl: post.featuredImage?.startsWith("https://") ? post.featuredImage : "",
-        };
-        campaignNameInput.value = proposal.campaignName;
-        subjectInput.value = proposal.subject;
-        preheaderInput.value = proposal.preheader;
-        aicedAudienceTags = [...proposal.audience.tags];
-        updateCharacterCount(subjectInput, subjectCharacterCount);
-        updateCharacterCount(preheaderInput, preheaderCharacterCount);
-        renderSelectedPost();
-        schedulePreviewRender();
-        campaignAicedDialog.close();
-        setCampaignStep("review");
-    } catch (error) {
-        setAicedCampaignStatus(error.message || "The proposal could not be applied.", true);
-    } finally {
-        reviewAicedCampaignButton.disabled = false;
+        regenerateAicedProposalButton.disabled = false;
     }
 }
 
@@ -475,18 +497,24 @@ if (savedTheme && supportedThemes.has(savedTheme)) applyTheme(savedTheme);
 themeSelector.addEventListener("change", (event) => applyTheme(event.target.value));
 changeSelectedPostButton.addEventListener("click", openPostPicker);
 createWithAicedButton.addEventListener("click", () => {
-    pendingAicedProposal = null;
-    campaignAicedProposal.hidden = true;
     setAicedCampaignStatus("");
+    if (pendingMarketingPackage) renderAicedMarketingPackage(pendingMarketingPackage);
+    else setAicedProposalMode("prompt");
     campaignAicedDialog.showModal();
-    campaignAicedRequest.focus();
+    if (!pendingMarketingPackage) campaignAicedRequest.focus();
 });
 closeCampaignAicedDialogButton.addEventListener("click", () => campaignAicedDialog.close());
 campaignAicedDialog.addEventListener("click", (event) => {
     if (event.target === campaignAicedDialog) campaignAicedDialog.close();
 });
-generateCampaignProposalButton.addEventListener("click", generateAicedCampaignProposal);
-reviewAicedCampaignButton.addEventListener("click", applyAicedCampaignProposal);
+generateCampaignProposalButton.addEventListener("click", generateAicedMarketingPackage);
+regenerateAicedProposalButton.addEventListener("click", generateAicedMarketingPackage);
+createAicedArticleButton.addEventListener("click", createAicedArticleDraft);
+editAicedPromptButton.addEventListener("click", () => {
+    setAicedProposalMode("prompt");
+    setAicedCampaignStatus("Edit your request, then generate a new proposal.");
+    campaignAicedRequest.focus();
+});
 closePostPickerButton.addEventListener("click", () => postPicker.close());
 postPicker.addEventListener("click", (event) => { if (event.target === postPicker) postPicker.close(); });
 [campaignNameInput, subjectInput, preheaderInput].forEach((input) => input.addEventListener("input", () => {

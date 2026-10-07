@@ -41,6 +41,34 @@ class Post(db.Model):
     content_blocks: Mapped[Optional[list[dict]]] = mapped_column(JSONB, nullable=True)
 
 
+class AicedArticleCampaignHandoff(db.Model):
+    """Temporary, human-reviewed campaign context attached to an Aiced draft post."""
+
+    __tablename__ = "aiced_article_campaign_handoffs"
+    __table_args__ = (
+        Index("ix_aiced_article_campaign_handoffs_post_id", "post_id"),
+        Index("ix_aiced_article_campaign_handoffs_expires_at", "expires_at"),
+        {"schema": "public"},
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    workflow_token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    post_id: Mapped[int] = mapped_column(
+        ForeignKey("posts.id", ondelete="CASCADE"), nullable=False
+    )
+    campaign_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    subject: Mapped[str] = mapped_column(String(200), nullable=False)
+    preheader: Mapped[str] = mapped_column(String(120), nullable=False)
+    audience_tag_names: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    audience_rationale: Mapped[str] = mapped_column(String(300), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    consumed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
 class Subscriber(db.Model):
     __tablename__ = "subscribers"
     __table_args__ = (

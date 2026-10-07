@@ -343,22 +343,69 @@
                 <img src="{{ url_for('static', filename='images/aicedbot-wave.png') }}" alt="">
                 <span>Aiced Bot</span>
             </div>
-            <h2 id="campaign-aiced-title">Create a campaign proposal</h2>
-            <p>Describe the campaign you want. Aiced Bot will use only published articles and existing audience tags.</p>
+            <h2 id="campaign-aiced-title">Create an article and campaign proposal</h2>
+            <p>Describe what you want to create. Aiced Bot will prepare an article, CTA, campaign, and audience recommendation for your review.</p>
         </div>
         <button class="post-picker__close" id="close-campaign-aiced-dialog" type="button" aria-label="Close Aiced Bot">×</button>
     </div>
-    <label class="campaign-field__label" for="campaign-aiced-request">What should this campaign be about?</label>
-    <textarea class="campaign-field__control campaign-field__control--textarea" id="campaign-aiced-request" rows="3" maxlength="500" placeholder="Example: Create a campaign using the September market update for first-time buyers in Palmdale."></textarea>
-    <div class="campaign-aiced-dialog__actions">
-        <button class="campaign-button campaign-button--accent" id="generate-campaign-proposal" type="button">Generate proposal</button>
+    <div id="campaign-aiced-prompt">
+        <label class="campaign-field__label" for="campaign-aiced-request">What would you like to create?</label>
+        <textarea class="campaign-field__control campaign-field__control--textarea" id="campaign-aiced-request" rows="3" maxlength="500" placeholder="Example: Create a campaign for first-time buyers in Palmdale about how much money they need to buy a home."></textarea>
+        <div class="campaign-aiced-dialog__actions">
+            <button class="campaign-button campaign-button--accent" id="generate-campaign-proposal" type="button">Generate proposal</button>
+        </div>
     </div>
     <p class="campaign-aiced-dialog__status" id="campaign-aiced-status" aria-live="polite"></p>
     <section class="campaign-aiced-proposal" id="campaign-aiced-proposal" hidden aria-live="polite">
-        <h3>Suggested campaign</h3>
-        <dl id="campaign-aiced-proposal-details"></dl>
-        <p id="campaign-aiced-proposal-rationale"></p>
-        <button class="campaign-button campaign-button--accent" id="review-aiced-campaign" type="button">Review campaign</button>
+        <div class="campaign-aiced-proposal__heading">
+            <div>
+                <h3>Your Aiced proposal</h3>
+                <p>Nothing has been published or sent. Review every part before taking the next step.</p>
+            </div>
+        </div>
+        <div class="campaign-aiced-proposal__grid">
+            <section class="campaign-aiced-review-section" aria-labelledby="aiced-article-review-title">
+                <h4 id="aiced-article-review-title">Article</h4>
+                <p class="campaign-aiced-review-section__category" id="aiced-article-category"></p>
+                <h5 id="aiced-article-title"></h5>
+                <p id="aiced-article-excerpt"></p>
+                <ul class="campaign-aiced-tag-list" id="aiced-article-tags" aria-label="Suggested article tags"></ul>
+                <div class="campaign-aiced-article-preview" id="aiced-article-preview"></div>
+            </section>
+            <section class="campaign-aiced-review-section" aria-labelledby="aiced-cta-review-title">
+                <h4 id="aiced-cta-review-title">CTA</h4>
+                <h5 id="aiced-cta-headline"></h5>
+                <p id="aiced-cta-body"></p>
+                <dl class="campaign-aiced-review-list">
+                    <dt>Button</dt><dd id="aiced-cta-button-label"></dd>
+                    <dt>Action</dt><dd id="aiced-cta-action-type"></dd>
+                    <dt>Intent</dt><dd id="aiced-cta-intent"></dd>
+                </dl>
+            </section>
+            <section class="campaign-aiced-review-section" aria-labelledby="aiced-campaign-review-title">
+                <h4 id="aiced-campaign-review-title">Campaign</h4>
+                <dl class="campaign-aiced-review-list">
+                    <dt>Name</dt><dd id="aiced-campaign-name"></dd>
+                    <dt>Subject</dt><dd id="aiced-campaign-subject"></dd>
+                    <dt>Preheader</dt><dd id="aiced-campaign-preheader"></dd>
+                </dl>
+            </section>
+            <section class="campaign-aiced-review-section" aria-labelledby="aiced-audience-review-title">
+                <h4 id="aiced-audience-review-title">Audience</h4>
+                <p class="campaign-aiced-audience-tags" id="aiced-audience-tags"></p>
+                <p id="aiced-audience-rationale"></p>
+                <strong class="campaign-aiced-audience-count" id="aiced-audience-count"></strong>
+            </section>
+        </div>
+        <div class="campaign-aiced-proposal__actions">
+            <button class="campaign-button campaign-button--secondary" id="edit-aiced-prompt" type="button">Edit prompt</button>
+            <button class="campaign-button campaign-button--secondary" id="regenerate-aiced-proposal" type="button">Regenerate</button>
+            <button class="campaign-button campaign-button--accent" id="create-article-review-campaign" type="button">Create &amp; Edit Article</button>
+        </div>
+        <p class="campaign-aiced-draft-status" id="aiced-draft-status" hidden>
+            Draft article created. Review and save your edits before continuing to campaign setup in a later step.
+            <a id="edit-aiced-draft-link" href="">Open draft article</a>
+        </p>
     </section>
 </dialog>
 </body>

@@ -10,7 +10,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_aiced.css') }}">
     <script src="{{ url_for('static', filename='js/script.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/dashboard_aiced.js') }}" defer></script>
 </head>
 
 <body>
@@ -155,33 +157,28 @@
                 <h1 class="visually-hidden" id="dashboard-title">
                     Eric Cuss dashboard
                 </h1>
-                <article class="featured-post">
-                    <a class="featured-post__link" href="/posts/2026-luxury-market-outlook">
+                <article class="featured-post" id="featured-post">
+                    <a class="featured-post__link" id="featured-post-link" href="">
                         <div class="featured-post__media">
-                            <img class="featured-post__image" src="{{ url_for('static', filename='images/collov-home-design-qWXGmMRe4so-unsplash.webp') }}"
-                                alt="Modern luxury home illuminated at dusk">
+                            <img class="featured-post__image" id="featured-post-image" alt="">
                         </div>
 
                         <div class="featured-post__content">
-                            <p class="featured-post__eyebrow">
-                                Featured market update
-                            </p>
+                            <p class="featured-post__eyebrow" id="featured-post-category">Latest published article</p>
 
-                            <h2 class="featured-post__title">
-                                How We Helped 8 Realtors Close More Deals This Month
-                            </h2>
+                            <h2 class="featured-post__title" id="featured-post-title"></h2>
 
-                            <p class="featured-post__summary">
-                                Explore the trends shaping luxury real estate and
-                                the opportunities ahead for agents and their clients.
-                            </p>
+                            <p class="featured-post__summary" id="featured-post-summary"></p>
 
                             <div class="featured-post__meta">
                                 <span>Eric Cuss</span>
-                                <time datetime="2026-08-05">August 6, 2026</time>
+                                <time id="featured-post-date"></time>
                             </div>
                         </div>
                     </a>
+                    <button class="dashboard-post-delete dashboard-post-delete--featured post-delete-icon" id="delete-featured-post" type="button" aria-label="Delete featured post" title="Delete featured post" hidden>
+                        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M6 7l1 13h10l1-13"></path><path d="M9 7V4h6v3"></path></svg>
+                    </button>
                 </article>
 
                 <section class="post-feed" aria-labelledby="latest-posts-title">
@@ -191,6 +188,15 @@
                             <h2 class="post-feed__title" id="latest-posts-title">
                                 Latest posts
                             </h2>
+                        </div>
+                        <div class="post-feed__actions" aria-label="Selected post actions">
+                            <button class="post-feed__action" id="select-all-posts" type="button">Select all</button>
+                            <button class="post-feed__action" id="edit-selected-post" type="button" disabled>Edit</button>
+                            <button class="post-feed__action" id="archive-selected-posts" type="button" disabled>Archive</button>
+                            <button class="post-feed__action post-feed__action--danger post-delete-icon" id="delete-selected-posts" type="button" aria-label="Delete selected posts" title="Delete selected posts" disabled>
+                                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M6 7l1 13h10l1-13"></path><path d="M9 7V4h6v3"></path></svg>
+                            </button>
+                            <a class="post-feed__action" href="{{ url_for('archived_posts') }}">View archive</a>
                         </div>
                     </div>
 
@@ -207,6 +213,7 @@
 
                 <template id="post-card-template">
                     <article class="post-card">
+                        <label class="post-card__select"><input type="checkbox" aria-label="Select post"><span aria-hidden="true"></span></label>
                         <a class="post-card__link" href="">
                             <div class="post-card__content">
                                 <p class="post-card__category"></p>
@@ -438,6 +445,43 @@
             <span>Profile</span>
         </a>
     </nav>
+
+    <button class="dashboard-aiced-launcher" id="dashboard-aiced-launcher" type="button" aria-label="Open Aiced Bot" aria-expanded="false" aria-controls="dashboard-aiced-dialog" title="Open Aiced Bot">
+        <img src="{{ url_for('static', filename='images/aicedbotprototype.png') }}" alt="">
+    </button>
+
+    <dialog class="dashboard-aiced-dialog" id="dashboard-aiced-dialog" aria-labelledby="dashboard-aiced-title">
+        <div class="dashboard-aiced-dialog__header">
+            <div class="dashboard-aiced-dialog__identity">
+                <img src="{{ url_for('static', filename='images/aicedbot-wave.png') }}" alt="">
+                <div>
+                    <p>Aiced Bot</p>
+                    <h2 id="dashboard-aiced-title">Create an article and campaign proposal</h2>
+                </div>
+            </div>
+            <button class="dashboard-aiced-dialog__close" id="dashboard-aiced-close" type="button" aria-label="Close Aiced Bot">×</button>
+        </div>
+        <div id="dashboard-aiced-prompt">
+            <label for="dashboard-aiced-request">What would you like to create?</label>
+            <textarea id="dashboard-aiced-request" rows="4" maxlength="500" placeholder="Example: Create a guide for first-time buyers in Palmdale about preparing to buy a home."></textarea>
+            <button class="dashboard-aiced-dialog__primary" id="dashboard-aiced-generate" type="button">Generate proposal</button>
+        </div>
+        <p class="dashboard-aiced-dialog__status" id="dashboard-aiced-status" aria-live="polite"></p>
+        <section class="dashboard-aiced-proposal" id="dashboard-aiced-proposal" hidden>
+            <p class="dashboard-aiced-proposal__eyebrow">Aiced proposal</p>
+            <h3 id="dashboard-aiced-article-title"></h3>
+            <p id="dashboard-aiced-article-excerpt"></p>
+            <p class="dashboard-aiced-proposal__meta" id="dashboard-aiced-campaign-summary"></p>
+            <p class="dashboard-aiced-proposal__meta" id="dashboard-aiced-audience-summary"></p>
+            <div class="dashboard-aiced-proposal__actions">
+                <button class="dashboard-aiced-dialog__secondary" id="dashboard-aiced-edit-prompt" type="button">Edit prompt</button>
+                <button class="dashboard-aiced-dialog__primary" id="dashboard-aiced-create-draft" type="button">Create &amp; Edit Article</button>
+            </div>
+            <p class="dashboard-aiced-proposal__success" id="dashboard-aiced-draft-success" hidden>
+                Draft created. <a id="dashboard-aiced-draft-link" href="">Open draft article</a>
+            </p>
+        </section>
+    </dialog>
 </body>
 
 </html>

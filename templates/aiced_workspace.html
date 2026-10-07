@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#050b14">
+    <title>Aiced | Rise Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/aiced_workspace.css') }}">
+    <script src="{{ url_for('static', filename='js/aiced_workspace.js') }}" defer></script>
+</head>
+<body class="aiced-workspace-page">
+    <div class="aiced-shell">
+        <aside class="aiced-sidebar" id="aiced-sidebar" aria-label="Aiced navigation">
+            <div class="aiced-sidebar__brand">
+                <img src="{{ url_for('static', filename='images/aicedbot-wave.png') }}" alt="">
+                <span>Aiced Bot</span>
+            </div>
+            <button class="aiced-sidebar__new" id="aiced-new-button" type="button">
+                <span aria-hidden="true">+</span> New
+            </button>
+            <nav class="aiced-sidebar__nav" aria-label="Primary navigation">
+                <a class="is-current" href="/aiced" aria-current="page">Aiced</a>
+                <a href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('new_campaign') }}">Campaigns</a>
+                <a href="{{ url_for('new_post') }}">Articles</a>
+                <a href="{{ url_for('subscribers') }}">Subscribers</a>
+            </nav>
+            <nav class="aiced-sidebar__nav aiced-sidebar__nav--future" aria-label="Future navigation">
+                <span>Analytics <small>Coming soon</small></span>
+                <span>Settings <small>Coming soon</small></span>
+            </nav>
+        </aside>
+
+        <main class="aiced-workspace" id="main-content">
+            <header class="aiced-workspace__mobile-header">
+                <button id="aiced-menu-button" type="button" aria-label="Open navigation" aria-controls="aiced-sidebar" aria-expanded="false">☰</button>
+                <span>Aiced Bot</span>
+            </header>
+
+            <section class="aiced-intro" id="aiced-intro" aria-labelledby="aiced-workspace-title">
+                <img class="aiced-intro__bot" src="{{ url_for('static', filename='images/aicedbot-wave.png') }}" alt="Aiced Bot">
+                <p class="aiced-eyebrow">Your marketing copilot</p>
+                <h1 id="aiced-workspace-title">What do you want to create?</h1>
+                <p class="aiced-intro__description">Tell Aiced about your marketing goal. It will prepare an article, call to action, campaign copy, and recommended audience for you to review.</p>
+                <form class="aiced-composer" id="aiced-generation-form">
+                    <label class="visually-hidden" for="aiced-generation-request">Describe what you want to create</label>
+                    <textarea id="aiced-generation-request" rows="4" maxlength="500" placeholder="Create a campaign about why families are moving to Palmdale..."></textarea>
+                    <div class="aiced-composer__footer">
+                        <span>Describe the goal, audience, and location if relevant.</span>
+                        <button class="aiced-button aiced-button--primary" id="aiced-generate-button" type="submit">Create package <span aria-hidden="true">→</span></button>
+                    </div>
+                </form>
+                <div class="aiced-suggestions" aria-label="Prompt examples">
+                    <button type="button" data-prompt-suggestion="Create a monthly Antelope Valley market update for homeowners.">Market update</button>
+                    <button type="button" data-prompt-suggestion="Create a helpful guide for first-time buyers in Palmdale.">First-time buyers</button>
+                    <button type="button" data-prompt-suggestion="Create a local lifestyle article about things to do in Lancaster this fall.">Local lifestyle</button>
+                    <button type="button" data-prompt-suggestion="Create a recruiting campaign for real estate agents interested in joining our team.">Recruiting</button>
+                </div>
+                <p class="aiced-status" id="aiced-generation-status" aria-live="polite"></p>
+                <button class="aiced-button aiced-button--quiet aiced-restore-start-new" id="aiced-restore-start-new" type="button" hidden>Start New</button>
+            </section>
+
+            <section class="aiced-review" id="aiced-review" aria-label="Generated marketing package" hidden>
+                <header class="aiced-review__header">
+                    <div>
+                        <p class="aiced-eyebrow">Aiced proposal</p>
+                        <h1>Done — I put together your campaign.</h1>
+                        <p>I created an article, call to action, campaign copy, and a recommended audience for you to review.</p>
+                    </div>
+                    <button class="aiced-button aiced-button--quiet" id="aiced-review-new-button" type="button">Start over</button>
+                </header>
+                <p class="aiced-status" id="aiced-review-status" aria-live="polite"></p>
+
+                <div class="aiced-review__grid">
+                    <article class="aiced-review-card aiced-review-card--article" id="aiced-card-article">
+                        <div class="aiced-card__heading"><span>Article</span><div><p id="aiced-article-category"></p><button class="aiced-card-edit" data-card-edit="article" type="button" disabled>Edit</button></div></div>
+                        <h2 id="aiced-article-title"></h2>
+                        <p class="aiced-review-card__excerpt" id="aiced-article-excerpt"></p>
+                        <ul class="aiced-tag-list" id="aiced-article-tags" aria-label="Article tags"></ul>
+                        <section class="aiced-featured-image" id="aiced-featured-image" aria-label="Featured image"></section>
+                        <div class="aiced-article-summary-meta"><span id="aiced-article-block-count"></span><span>Draft article</span></div>
+                        <button class="aiced-article-toggle" id="aiced-article-toggle" type="button" aria-expanded="false" aria-controls="aiced-article-content">Read article <span aria-hidden="true">↓</span></button>
+                        <a class="aiced-article-full-editor" id="aiced-article-full-editor" hidden>Open Full Editor ↗</a>
+                        <div class="aiced-article-content" id="aiced-article-content" aria-label="Article content preview" hidden></div>
+                    </article>
+
+                    <article class="aiced-review-card aiced-review-card--cta" id="aiced-card-cta">
+                        <div class="aiced-card__heading"><span>Call to action</span><button class="aiced-card-edit" data-card-edit="cta" type="button" disabled>Edit</button></div>
+                        <h2 id="aiced-cta-headline"></h2>
+                        <p id="aiced-cta-body"></p>
+                        <span class="aiced-cta-button-preview" id="aiced-cta-button-label"></span>
+                        <p class="aiced-card__meta"><span id="aiced-cta-action"></span><span aria-hidden="true">·</span><span id="aiced-cta-intent"></span></p>
+                    </article>
+
+                    <article class="aiced-review-card" id="aiced-card-campaign">
+                        <div class="aiced-card__heading"><span>Campaign</span><button class="aiced-card-edit" data-card-edit="campaign" type="button" disabled>Edit</button></div>
+                        <dl class="aiced-details">
+                            <div><dt>Subject</dt><dd id="aiced-campaign-subject"></dd></div>
+                            <div><dt>Preheader</dt><dd id="aiced-campaign-preheader"></dd></div>
+                            <div class="aiced-details__secondary"><dt>Campaign name</dt><dd id="aiced-campaign-name"></dd></div>
+                        </dl>
+                    </article>
+
+                    <article class="aiced-review-card" id="aiced-card-audience">
+                        <div class="aiced-card__heading"><span>Audience</span><button class="aiced-card-edit" data-card-edit="audience" type="button" disabled>Edit</button></div>
+                        <ul class="aiced-tag-list" id="aiced-audience-tags" aria-label="Recommended audience tags"></ul>
+                        <p id="aiced-audience-rationale"></p>
+                        <strong class="aiced-audience-count" id="aiced-audience-count"></strong>
+                    </article>
+
+                    <article class="aiced-review-card aiced-review-card--email">
+                        <div class="aiced-card__heading"><span>Email preview</span><p>Preview</p></div>
+                        <div class="aiced-email-placeholder">
+                            <p class="aiced-email-placeholder__brand">YOUR NEWSLETTER</p>
+                            <h2 id="aiced-email-headline"></h2>
+                            <p id="aiced-email-summary"></p>
+                            <span id="aiced-email-cta"></span>
+                        </div>
+                        <p class="aiced-card__note">A full email preview becomes available after the reviewed article is saved and published.</p>
+                    </article>
+                </div>
+
+                <footer class="aiced-review__actions">
+                    <button class="aiced-button aiced-button--primary" id="aiced-approve-button" type="button" disabled>Approve &amp; Continue <span aria-hidden="true">→</span></button>
+                    <p>Nothing has been saved, published, or sent.</p>
+                </footer>
+                <section class="aiced-refine" aria-label="Ask Aiced to refine this proposal">
+                    <label for="aiced-refine-request">Ask Aiced to change anything</label>
+                    <div>
+                        <input id="aiced-refine-request" type="text" maxlength="500" placeholder="Make the title less salesy..." disabled>
+                        <button id="aiced-refine-send" type="button" disabled aria-label="Send refinement request">↑</button>
+                    </div>
+                    <p>Your first request saves this reviewed draft, then Aiced applies the change. Nothing is published or sent.</p>
+                </section>
+            </section>
+        </main>
+    </div>
+</body>
+</html>

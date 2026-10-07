@@ -85,6 +85,9 @@ const undoAiAssistantButton = document.querySelector("#undo-ai-assistant-button"
 let featuredImageDataUrl = null;
 let isFeaturedImageUploading = false;
 let isPublishing = false;
+let isSavingDraft = false;
+let editingPostId = null;
+let editingPostStatus = null;
 let contentBlocks = [];
 let draggedBlockIndex = null;
 let draggedSectionBlockIndexes = null;
@@ -200,7 +203,7 @@ function createBlockField(block, field, labelText, multiline = false) {
 
 function getBlockPreview(block) {
     if (block.type === "cta") {
-        return block.text || "Add call to action text";
+        return block.text || block.buttonLabel || block.headline || "Add call to action text";
     }
 
     return block.text || block.url || `Add ${blockPresentation[block.type].label.toLowerCase()} content`;
@@ -675,10 +678,10 @@ function createBlockShowcase(block) {
         return quote;
     }
 
-    if (block.type === "cta" && block.text) {
+    if (block.type === "cta" && (block.text || block.buttonLabel || block.headline)) {
         const cta = document.createElement("span");
         cta.className = "block-builder__asset block-builder__asset--cta";
-        cta.textContent = block.text;
+        cta.textContent = block.text || block.buttonLabel || block.headline;
         return cta;
     }
 
@@ -1088,7 +1091,7 @@ function renderContentBlocks() {
         const editor = document.createElement(isInlineTextBlock ? "div" : "details");
         editor.className = "block-builder__editor";
         if (!isInlineTextBlock) {
-            editor.open = !block.text && !block.url;
+            editor.open = !block.text && !block.url && !block.headline && !block.buttonLabel;
             const editorSummary = document.createElement("summary");
             editorSummary.textContent = "Edit block";
             editor.append(editorSummary);
@@ -1106,6 +1109,12 @@ function renderContentBlocks() {
             editor.append(createImageDropZone(block));
         } else if (block.type === "youtube") {
             editor.append(createBlockField(block, "url", "URL"));
+        } else if (block.headline) {
+            editor.append(createBlockField(block, "headline", "Headline"));
+            editor.append(createBlockField(block, "body", "Body", true));
+            editor.append(createBlockField(block, "buttonLabel", "Button label"));
+            editor.append(createBlockField(block, "actionType", "Action type"));
+            editor.append(createBlockField(block, "intent", "Audience intent"));
         } else {
             editor.append(createBlockField(block, "text", "Button text"));
             editor.append(createBlockField(block, "url", "Destination URL"));
@@ -1223,6 +1232,10 @@ function parseTags(tagsValue) {
 }
 
 function getPostData(status = "draft") {
+    const effectiveStatus = editingPostId && status === "published" && editingPostStatus === "archived"
+        ? "archived"
+        : status;
+
     return {
         title: postForm.querySelector("#post-title").value.trim(),
         content: "",
@@ -1233,9 +1246,9 @@ function getPostData(status = "draft") {
         excerpt: postForm.querySelector("#post-excerpt").value.trim(),
         featuredImage: featuredImageDataUrl,
         contentBlocks: contentBlocks.map((block) => ({ ...block })),
-        status,
+        status: effectiveStatus,
         publishedDate:
-            status === "published"
+            effectiveStatus === "published"
                 ? new Date().toISOString()
                 : null
     };
@@ -1725,7 +1738,7 @@ function renderContentPreview(blocks) {
         }
 
         if (block.type === "cta") {
-            element.textContent = block.text || "Call to action";
+            element.textContent = block.text || block.buttonLabel || block.headline || "Call to action";
             return element;
         }
 
@@ -1768,8 +1781,8 @@ function populatePostForm(post) {
     renderPostPreview(post);
 }
 
-function saveDraft() {
-    if (isFeaturedImageUploading) {
+async function saveDraft() {
+    if (isSavingDraft || isFeaturedImageUploading) {
         showPublishingStatus("Wait for the cover image upload to finish before saving.");
         return;
     }
@@ -1777,6 +1790,16 @@ function saveDraft() {
     const draft = getPostData("draft");
 
     try {
+        if (editingPostId) {
+            isSavingDraft = true;
+            saveDraftButton.disabled = true;
+            showPublishingStatus("Saving draft…");
+            const savedPost = await sendPost(draft);
+            editingPostStatus = savedPost.status;
+            populatePostForm(savedPost);
+            showPublishingStatus("Draft saved.");
+            return;
+        }
         if (isDemoMode) {
             localStorage.setItem(demoDraftStorageKey, JSON.stringify(draft));
         } else {
@@ -1792,6 +1815,9 @@ function saveDraft() {
     } catch (error) {
         showPublishingStatus("The draft could not be saved.");
         console.error("Unable to save draft:", error);
+    } finally {
+        isSavingDraft = false;
+        saveDraftButton.disabled = false;
     }
 }
 
@@ -1834,9 +1860,14 @@ async function publishPost() {
             throw new Error("The server did not return a post ID.");
         }
 
-        showPublishingStatus("Post published. Opening article...");
+        const destination = createdPost.status === "archived" ? "/posts/archive" : `/blog/${createdPost.id}`;
+        showPublishingStatus(
+            createdPost.status === "archived"
+                ? "Archived post updated. Opening archive..."
+                : editingPostId ? "Post updated. Opening article..." : "Post published. Opening article..."
+        );
         window.setTimeout(() => {
-            window.location.assign(`/blog/${createdPost.id}`);
+            window.location.assign(destination);
         }, 250);
     } catch (error) {
         const message = error instanceof TypeError
@@ -1851,8 +1882,8 @@ async function publishPost() {
 }
 
 async function sendPost(postData) {
-    const response = await fetch("/api/posts", {
-        method: "POST",
+    const response = await fetch(editingPostId ? `/api/posts/${editingPostId}` : "/api/posts", {
+        method: editingPostId ? "PATCH" : "POST",
         headers: {
             "Content-Type": "application/json"
         },
@@ -2171,4 +2202,40 @@ if (builderQuery.get("draft") === "continue") {
         populatePostForm(savedDraft);
         showPublishingStatus("Continued your saved browser draft.");
     }
+}
+
+const editPostId = Number(builderQuery.get("edit"));
+const workflowToken = builderQuery.get("workflow");
+if (Number.isInteger(editPostId) && editPostId > 0) {
+    fetch(`/api/admin/posts/${editPostId}`, {credentials: "same-origin"})
+        .then(async (response) => {
+            const post = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(post.message || "The post could not be loaded.");
+            editingPostId = editPostId;
+            editingPostStatus = post.status;
+            populatePostForm(post);
+            publishPostButton.textContent = "Update post";
+            if (!workflowToken) {
+                showPublishingStatus("Editing existing post. Update it when you are ready.");
+                return;
+            }
+
+            fetch(
+                `/api/aiced/article-campaign-handoff/${encodeURIComponent(workflowToken)}/posts/${editPostId}`,
+                {credentials: "same-origin"}
+            )
+                .then(async (workflowResponse) => {
+                    const workflow = await workflowResponse.json().catch(() => ({}));
+                    if (!workflowResponse.ok || workflow.valid !== true) {
+                        throw new Error("This Aiced workflow link is unavailable.");
+                    }
+                    showPublishingStatus("Aiced draft loaded. Review and save your article edits when you are ready.");
+                })
+                .catch(() => {
+                    showPublishingStatus("This Aiced workflow link is unavailable. You can still edit this article normally.");
+                });
+        })
+        .catch((error) => {
+            showPublishingStatus(error.message || "The post could not be loaded.");
+        });
 }

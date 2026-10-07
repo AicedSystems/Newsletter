@@ -642,6 +642,7 @@ button {
 
 /* ////////CENTER MAIN NEWSLETTER PAGE ///////// */
 .featured-post {
+    position: relative;
     overflow: hidden;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -728,6 +729,54 @@ button {
     outline: 2px solid var(--color-gold-light);
     outline-offset: 4px;
 }
+
+.dashboard-post-delete {
+    margin: 0 20px 16px auto;
+    padding: 7px 10px;
+    color: #c65757;
+    background: transparent;
+    border: 1px solid currentColor;
+    border-radius: 7px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.dashboard-post-delete:hover,
+.dashboard-post-delete:focus-visible {
+    color: #fff;
+    background: #b84747;
+}
+
+.dashboard-post-delete:disabled { cursor: wait; opacity: .6; }
+
+.dashboard-post-delete--featured {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 1;
+    margin: 0;
+    background: rgba(5, 11, 20, .72);
+}
+
+.post-delete-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+}
+
+.post-delete-icon svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+}
 /* //////sizing.////// */
 @media (max-width: 900px) {
     .featured-post__link {
@@ -771,6 +820,52 @@ button {
     margin-bottom: 18px;
 }
 
+.post-feed__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.post-feed__action {
+    min-height: 34px;
+    padding: 7px 11px;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 8px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.post-feed__action:hover:not(:disabled),
+.post-feed__action:focus-visible:not(:disabled) {
+    color: var(--color-gold-light);
+    border-color: var(--color-gold);
+    background: var(--color-surface-hover);
+}
+
+.post-feed__action:focus-visible {
+    outline: 2px solid var(--color-gold-light);
+    outline-offset: 2px;
+}
+
+.post-feed__action:disabled {
+    cursor: not-allowed;
+    opacity: .45;
+}
+
+.post-feed__action--danger:hover:not(:disabled),
+.post-feed__action--danger:focus-visible:not(:disabled) {
+    color: #fff;
+    border-color: #b84747;
+    background: #b84747;
+}
+
 .post-feed__eyebrow {
     margin: 0 0 6px;
     color: var(--color-gold-light);
@@ -793,6 +888,7 @@ button {
 }
 
 .post-card {
+    position: relative;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: 16px;
@@ -814,9 +910,46 @@ button {
     justify-content: space-between;
     gap: 24px;
     min-height: 200px;
-    padding: 28px;
+    padding: 28px 28px 28px 64px;
     color: inherit;
     text-decoration: none;
+}
+
+.post-card__select {
+    position: absolute;
+    top: 23px;
+    left: 20px;
+    z-index: 2;
+    display: grid;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+}
+
+.post-card__select input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.post-card__select span {
+    width: 18px;
+    height: 18px;
+    background: var(--color-background);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 5px;
+}
+
+.post-card__select input:checked + span {
+    background: var(--color-gold);
+    border-color: var(--color-gold);
+    box-shadow: inset 0 0 0 4px var(--color-background);
+}
+
+.post-card__select input:focus-visible + span {
+    outline: 2px solid var(--color-gold-light);
+    outline-offset: 2px;
 }
 
 .post-card__content {
@@ -917,10 +1050,100 @@ button {
     display: none;
 }
 
+.archive-page {
+    width: min(960px, calc(100% - 40px));
+    margin: 0 auto;
+    padding: 48px 0 72px;
+}
+
+.archive-page__back {
+    display: inline-block;
+    margin-bottom: 32px;
+    color: var(--color-gold-light);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.archive-page__back:hover,
+.archive-page__back:focus-visible {
+    color: var(--color-text);
+}
+
+.archive-page__header h1 {
+    margin: 0;
+    color: var(--color-text);
+    font-size: clamp(30px, 5vw, 42px);
+}
+
+.archive-page__header p:not(.post-feed__eyebrow) {
+    max-width: 650px;
+    margin: 10px 0 0;
+    color: var(--color-text-muted);
+    line-height: 1.6;
+}
+
+.archive-page__status {
+    margin: 28px 0 16px;
+    color: var(--color-text-muted);
+}
+
+.archive-page__list {
+    display: grid;
+    gap: 14px;
+}
+
+.archive-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 24px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+}
+
+.archive-card h2 {
+    margin: 0;
+    color: var(--color-text);
+    font-size: 20px;
+}
+
+.archive-card__excerpt,
+.archive-card time {
+    display: block;
+    margin: 8px 0 0;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+}
+
+.archive-card__actions {
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
 @media (max-width: 520px) {
+    .post-feed__heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .post-feed__actions {
+        justify-content: flex-start;
+    }
+
     .post-card__link {
         min-height: auto;
-        padding: 22px;
+        padding: 22px 22px 22px 54px;
+    }
+
+    .post-card__select {
+        top: 18px;
+        left: 16px;
     }
 
     .post-card__title {
@@ -929,6 +1152,20 @@ button {
 
     .post-card__arrow {
         display: none;
+    }
+
+    .archive-page {
+        width: min(calc(100% - 28px), 960px);
+        padding-top: 28px;
+    }
+
+    .archive-card {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .archive-card__actions {
+        justify-content: flex-start;
     }
 }
 
