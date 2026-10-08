@@ -84,6 +84,7 @@ const undoAiAssistantButton = document.querySelector("#undo-ai-assistant-button"
 
 let featuredImageDataUrl = null;
 let isFeaturedImageUploading = false;
+let inlineImageUploadCount = 0;
 let isPublishing = false;
 let isSavingDraft = false;
 let editingPostId = null;
@@ -463,13 +464,26 @@ function validateImageFile(file) {
 async function setImageBlockFile(block, file) {
     try {
         validateImageFile(file);
-        const imageUrl = await readImageFile(file);
-        applyContentMutation(() => {
-            block.url = imageUrl;
+        inlineImageUploadCount += 1;
+        showPublishingStatus("Uploading article image…");
+        const formData = new FormData();
+        formData.append("image", file);
+        const response = await fetch("/api/uploads/article-image", {
+            method: "POST",
+            body: formData
         });
-        showPublishingStatus("Image block ready to publish.");
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || typeof result.url !== "string" || !result.url.startsWith("https://")) {
+            throw new Error(result.message || "The article image could not be uploaded.");
+        }
+        applyContentMutation(() => {
+            block.url = result.url;
+        });
+        showPublishingStatus("Article image uploaded and ready to publish.");
     } catch (error) {
         showPublishingStatus(error.message);
+    } finally {
+        inlineImageUploadCount = Math.max(0, inlineImageUploadCount - 1);
     }
 }
 
@@ -1782,8 +1796,8 @@ function populatePostForm(post) {
 }
 
 async function saveDraft() {
-    if (isSavingDraft || isFeaturedImageUploading) {
-        showPublishingStatus("Wait for the cover image upload to finish before saving.");
+    if (isSavingDraft || isFeaturedImageUploading || inlineImageUploadCount) {
+        showPublishingStatus("Wait for image uploads to finish before saving.");
         return;
     }
 
@@ -1822,9 +1836,9 @@ async function saveDraft() {
 }
 
 async function publishPost() {
-    if (isPublishing || isFeaturedImageUploading || !postForm.reportValidity()) {
-        if (isFeaturedImageUploading) {
-            showPublishingStatus("Wait for the cover image upload to finish before publishing.");
+    if (isPublishing || isFeaturedImageUploading || inlineImageUploadCount || !postForm.reportValidity()) {
+        if (isFeaturedImageUploading || inlineImageUploadCount) {
+            showPublishingStatus("Wait for image uploads to finish before publishing.");
         }
         return;
     }

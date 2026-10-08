@@ -45,6 +45,8 @@ const aicedDraftStatus = document.querySelector("#aiced-draft-status");
 const editAicedDraftLink = document.querySelector("#edit-aiced-draft-link");
 
 const supportedThemes = new Set(["midnight", "obsidian", "sage"]);
+const allowedCampaignImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const maximumCampaignImageSize = 5 * 1024 * 1024;
 let selectedPost = null;
 let previewTimer = null;
 let isEditingPreview = false;
@@ -382,6 +384,49 @@ function finishPreviewEditing() {
     schedulePreviewRender();
 }
 
+function validateCampaignImageFile(file) {
+    if (!file || !allowedCampaignImageTypes.has(file.type)) {
+        throw new Error("Choose a JPEG, PNG, or WebP image.");
+    }
+    if (file.size > maximumCampaignImageSize) {
+        throw new Error("Images must be 5 MB or smaller.");
+    }
+}
+
+async function uploadCampaignCoverImage(file, coverImage) {
+    validateCampaignImageFile(file);
+    showStatus("Uploading campaign cover image…");
+    const formData = new FormData();
+    formData.append("image", file);
+    const response = await fetch("/api/uploads/article-image", { method: "POST", body: formData });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || typeof result.url !== "string" || !result.url.startsWith("https://")) {
+        throw new Error(result.message || "The campaign cover image could not be uploaded.");
+    }
+    campaignEdits.coverImageUrl = result.url;
+    coverImage.src = result.url;
+    showStatus("Campaign cover image uploaded.");
+}
+
+function chooseCampaignCoverImage(coverImage) {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/jpeg,image/png,image/webp";
+    input.hidden = true;
+    input.addEventListener("change", async () => {
+        const [file] = input.files;
+        input.remove();
+        if (!file) return;
+        try {
+            await uploadCampaignCoverImage(file, coverImage);
+        } catch (error) {
+            showStatus(error.message || "The campaign cover image could not be uploaded.", true);
+        }
+    }, { once: true });
+    document.body.append(input);
+    input.click();
+}
+
 function enablePreviewEditing() {
     const previewDocument = emailPreview.contentDocument;
     if (!previewDocument) return;
@@ -406,16 +451,9 @@ function enablePreviewEditing() {
         coverImage.style.outline = "2px solid #3b82f6";
         coverImage.style.outlineOffset = "-4px";
         coverImage.style.cursor = "pointer";
-        coverImage.title = "Click to replace this cover image";
+        coverImage.title = "Click to upload a replacement cover image";
         coverImage.addEventListener("click", () => {
-            const nextUrl = window.prompt("Paste a public HTTPS image URL", campaignEdits.coverImageUrl || coverImage.src);
-            if (!nextUrl) return;
-            if (!nextUrl.startsWith("https://")) {
-                window.alert("Please use a public HTTPS image URL.");
-                return;
-            }
-            campaignEdits.coverImageUrl = nextUrl;
-            coverImage.src = nextUrl;
+            chooseCampaignCoverImage(coverImage);
         });
     }
     headline?.focus();

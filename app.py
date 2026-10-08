@@ -27,6 +27,8 @@ from email_renderer import (
 from extensions import db
 from models import (
     AicedArticleCampaignHandoff,
+    Campaign,
+    CampaignRecipient,
     Post,
     Subscriber,
     SubscriberTag,
@@ -50,6 +52,13 @@ if not editor_username or not editor_password:
     raise RuntimeError("EDITOR_USERNAME and EDITOR_PASSWORD must be set.")
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+
+try:
+    app.config["AICED_SYNC_SEND_MAX_RECIPIENTS"] = max(
+        1, int(os.environ.get("AICED_SYNC_SEND_MAX_RECIPIENTS", "10"))
+    )
+except ValueError:
+    app.config["AICED_SYNC_SEND_MAX_RECIPIENTS"] = 10
 
 db.init_app(app)
 migrate = Migrate(app, db)
@@ -475,8 +484,18 @@ def request_aiced_featured_image(post):
         encoded = response.data[0].b64_json
         image_bytes = base64.b64decode(encoded, validate=True)
     except (ImportError, AttributeError, IndexError, TypeError, ValueError, binascii.Error):
+        reference_id = uuid4().hex[:10].upper()
+        app.logger.warning("Aiced featured image output failure [reference=%s]", reference_id)
         return None, "Aiced Bot could not create an image. Please try again.", 502
-    except Exception:
+    except Exception as error:
+        reference_id = uuid4().hex[:10].upper()
+        provider_status = getattr(error, "status_code", None)
+        if not isinstance(provider_status, int) or isinstance(provider_status, bool):
+            provider_status = None
+        app.logger.warning(
+            "Aiced featured image provider failure [reference=%s type=%s status=%s]",
+            reference_id, type(error).__name__, provider_status,
+        )
         return None, "Aiced Bot could not create an image. Please try again.", 502
     if not image_bytes or len(image_bytes) > MAXIMUM_ARTICLE_IMAGE_BYTES:
         return None, "Aiced Bot returned an invalid image.", 502
@@ -722,11 +741,11 @@ def validate_aiced_manual_workflow_update(data, post, handoff, current_tags):
 
     cta = data.get("cta")
     if cta is not None:
-        allowed = {"headline", "body", "buttonLabel"}
+        allowed = {"headline", "body", "buttonLabel", "actionType", "intent"}
         if not isinstance(cta, dict) or not cta or not set(cta).issubset(allowed): return None, "CTA changes are invalid."
         original = source["contentBlocks"][-1] if source["contentBlocks"] else None
         if not isinstance(original, dict) or original.get("type") != "cta" or "headline" not in original: return None, "This CTA cannot be edited safely."
-        candidate = {"type": "cta", **{field: cta.get(field, original[field]) for field in ("headline", "body", "buttonLabel")}, "actionType": original["actionType"], "intent": original["intent"]}
+        candidate = {"type": "cta", **{field: cta.get(field, original[field]) for field in ("headline", "body", "buttonLabel", "actionType", "intent")}}
         blocks, error = validate_content_blocks([candidate])
         if error: return None, error
         updates["cta"] = blocks[0]
@@ -742,15 +761,22 @@ def validate_aiced_manual_workflow_update(data, post, handoff, current_tags):
 
     audience = data.get("audience")
     if audience is not None:
-        if not isinstance(audience, dict) or set(audience) != {"tags"} or not isinstance(audience["tags"], list) or len(audience["tags"]) > MAXIMUM_CAMPAIGN_AICED_TAGS: return None, "Audience changes are invalid."
-        resolved, seen = [], set()
-        for name in audience["tags"]:
-            if not is_plain_ai_text(name, MAXIMUM_SUBSCRIBER_TAG_NAME_CHARACTERS): return None, "Choose valid existing audience tags."
-            normalized = normalize_subscriber_tag(name)
-            if normalized not in tag_lookup: return None, "Choose only existing audience tags."
-            if normalized not in seen:
-                seen.add(normalized); resolved.append(tag_lookup[normalized])
-        updates["audience"] = resolved
+        if not isinstance(audience, dict) or not audience or not set(audience).issubset({"tags", "rationale"}): return None, "Audience changes are invalid."
+        audience_updates = {}
+        if "tags" in audience:
+            if not isinstance(audience["tags"], list) or len(audience["tags"]) > MAXIMUM_CAMPAIGN_AICED_TAGS: return None, "Audience changes are invalid."
+            resolved, seen = [], set()
+            for name in audience["tags"]:
+                if not is_plain_ai_text(name, MAXIMUM_SUBSCRIBER_TAG_NAME_CHARACTERS): return None, "Choose valid existing audience tags."
+                normalized = normalize_subscriber_tag(name)
+                if normalized not in tag_lookup: return None, "Choose only existing audience tags."
+                if normalized not in seen:
+                    seen.add(normalized); resolved.append(tag_lookup[normalized])
+            audience_updates["tags"] = resolved
+        if "rationale" in audience:
+            if not is_plain_ai_text(audience["rationale"], 300): return None, "Audience rationale must contain valid text."
+            audience_updates["rationale"] = audience["rationale"].strip()
+        updates["audience"] = audience_updates
     if not any((updates["article"], updates["cta"], updates["campaign"], updates["audience"] is not None)):
         return None, "Choose one or more supported fields to update."
     return updates, None
@@ -1329,7 +1355,80 @@ def resolve_active_aiced_audience(tags):
     return list(db.session.execute(statement.order_by(Subscriber.id)).scalars())
 
 
-def serialize_aiced_workflow(post, handoff, current_tags):
+def subscriber_display_name(subscriber):
+    return " ".join(
+        value.strip()
+        for value in (subscriber.first_name, subscriber.last_name)
+        if isinstance(value, str) and value.strip()
+    ) or "Subscriber"
+
+
+def mask_recipient_email(email):
+    if not isinstance(email, str) or "@" not in email:
+        return "hidden"
+    local_part, domain = email.split("@", 1)
+    return f"{local_part[:1] or '*'}***@{domain}"
+
+
+def serialize_campaign_delivery(campaign, recipients):
+    sent_count = sum(recipient.status == CampaignRecipient.STATUS_SENT for recipient in recipients)
+    failed_count = sum(recipient.status == CampaignRecipient.STATUS_FAILED for recipient in recipients)
+    pending_count = sum(recipient.status == CampaignRecipient.STATUS_PENDING for recipient in recipients)
+    return {
+        "id": campaign.id,
+        "status": campaign.status,
+        "recipientCount": len(recipients),
+        "sentCount": sent_count,
+        "failedCount": failed_count,
+        "pendingCount": pending_count,
+        "recipients": [
+            {
+                "name": recipient.name or "Subscriber",
+                "email": mask_recipient_email(recipient.email),
+            }
+            for recipient in recipients
+        ],
+    }
+
+
+def resolve_aiced_handoff_subscribers(handoff):
+    """Resolve the current eligible audience once, failing closed on missing tags."""
+    stored_tag_names = handoff.audience_tag_names
+    if not isinstance(stored_tag_names, list) or not all(
+        isinstance(name, str) and name.strip() for name in stored_tag_names
+    ):
+        return []
+
+    normalized_names = [normalize_subscriber_tag(name) for name in stored_tag_names]
+    current_tags = list(
+        db.session.execute(
+            db.select(SubscriberTag).where(
+                SubscriberTag.normalized_name.in_(normalized_names)
+            )
+        ).scalars()
+    ) if normalized_names else []
+    tags_by_name = {tag.normalized_name: tag for tag in current_tags}
+    if len(tags_by_name) != len(set(normalized_names)):
+        return []
+
+    subscriber_ids = resolve_active_aiced_audience(
+        [tags_by_name[name] for name in dict.fromkeys(normalized_names)]
+    )
+    if not subscriber_ids:
+        return []
+    return list(
+        db.session.execute(
+            db.select(Subscriber)
+            .where(
+                Subscriber.id.in_(subscriber_ids),
+                Subscriber.status == Subscriber.STATUS_ACTIVE,
+            )
+            .order_by(Subscriber.id)
+        ).scalars()
+    )
+
+
+def serialize_aiced_workflow(post, handoff, current_tags, delivery=None):
     stored_tag_names = handoff.audience_tag_names
     tags_by_normalized_name = {tag.normalized_name: tag for tag in current_tags}
     normalized_tag_names = [normalize_subscriber_tag(name) for name in stored_tag_names]
@@ -1338,11 +1437,29 @@ def serialize_aiced_workflow(post, handoff, current_tags):
     serialized_post = serialize_post(post)
     return {
         "workflow": {"postId": post.id, "status": post.status},
-        "article": {key: serialized_post[key] for key in ("title", "category", "excerpt", "tags", "contentBlocks", "featuredImage")},
-        "campaign": {"name": handoff.campaign_name, "subject": handoff.subject, "preheader": handoff.preheader},
+        "article": {**{key: serialized_post[key] for key in ("title", "category", "excerpt", "tags", "contentBlocks", "featuredImage")}, "publicArticlePath": f"/blog/{post.id}" if post.status == "published" else None},
+        "campaign": {
+            "name": handoff.campaign_name,
+            "subject": handoff.subject,
+            "preheader": handoff.preheader,
+            "delivery": delivery,
+        },
         "audience": {"tags": stored_tag_names, "rationale": handoff.audience_rationale, "eligibleRecipientCount": eligible_recipient_count},
         "availableAudienceTags": [tag.name for tag in current_tags],
     }
+
+
+def validate_aiced_post_for_publish(post):
+    if not is_plain_ai_text(post.title, 100):
+        return "Article title is required before publishing."
+    if post.category not in SUPPORTED_POST_CATEGORIES:
+        return "Choose a supported article category before publishing."
+    if not isinstance(post.excerpt, str) or not post.excerpt.strip() or len(post.excerpt.strip()) > 160:
+        return "Article summary is required before publishing."
+    blocks, error = validate_content_blocks(post.content_blocks)
+    if error or not blocks:
+        return error or "Add article content before publishing."
+    return None
 
 
 def validate_campaign_request(data, require_recipient=False):
@@ -1455,6 +1572,40 @@ def send_test_campaign_email(recipient, subject, rendered_email):
     if not isinstance(message_id, str) or not message_id:
         return None, "Test email provider returned an unusable response.", 502
 
+    return message_id, None, 200
+
+
+def send_campaign_recipient_email(recipient_email, subject, rendered_email):
+    """Submit one recipient only; callers persist its result separately."""
+    api_key = os.environ.get("RESEND_API_KEY")
+    email_from = os.environ.get("EMAIL_FROM")
+    if not api_key or not email_from:
+        return None, "Campaign email delivery is not configured on this server.", 503
+
+    try:
+        import resend
+
+        resend.api_key = api_key
+        result = resend.Emails.send(
+            {
+                "from": email_from,
+                "to": [recipient_email],
+                "subject": subject,
+                "html": rendered_email["html"],
+                "text": rendered_email["text"],
+            }
+        )
+    except ImportError:
+        return None, "Campaign email delivery is unavailable on this server.", 503
+    except Exception as error:
+        app.logger.warning(
+            "Campaign recipient provider failure [type=%s]", type(error).__name__
+        )
+        return None, "Email could not be submitted to the provider.", 502
+
+    message_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
+    if not isinstance(message_id, str) or not message_id:
+        return None, "Email provider returned an unusable response.", 502
     return message_id, None, 200
 
 
@@ -2186,9 +2337,9 @@ def get_aiced_workflow(workflow_token):
         return jsonify({"message": "This Aiced workflow is unavailable."}), 404
 
     post = db.session.get(Post, handoff.post_id)
-    if post is None or post.status != "draft":
+    if post is None or post.status not in {"draft", "published"}:
         return jsonify(
-            {"message": "This Aiced workflow is no longer available for draft review."}
+            {"message": "This Aiced workflow is no longer available for review."}
         ), 409
 
     stored_tag_names = handoff.audience_tag_names
@@ -2200,7 +2351,12 @@ def get_aiced_workflow(workflow_token):
     current_tags = list(
         db.session.execute(db.select(SubscriberTag).order_by(SubscriberTag.name)).scalars()
     )
-    return jsonify(serialize_aiced_workflow(post, handoff, current_tags))
+    campaign = db.session.execute(
+        db.select(Campaign).where(Campaign.workflow_handoff_id == handoff.id)
+    ).scalar_one_or_none()
+    recipients = campaign_recipients_for(campaign) if campaign is not None else []
+    delivery = serialize_campaign_delivery(campaign, recipients) if campaign is not None else None
+    return jsonify(serialize_aiced_workflow(post, handoff, current_tags, delivery))
 
 
 @app.patch("/api/aiced/workflows/<workflow_token>")
@@ -2228,7 +2384,10 @@ def update_aiced_workflow_manually(workflow_token):
     for field, value in updates["campaign"].items():
         setattr(handoff, {"name": "campaign_name", "subject": "subject", "preheader": "preheader"}[field], value)
     if updates["audience"] is not None:
-        handoff.audience_tag_names = [tag.name for tag in updates["audience"]]
+        if "tags" in updates["audience"]:
+            handoff.audience_tag_names = [tag.name for tag in updates["audience"]["tags"]]
+        if "rationale" in updates["audience"]:
+            handoff.audience_rationale = updates["audience"]["rationale"]
     try:
         db.session.commit()
     except SQLAlchemyError:
@@ -2265,13 +2424,252 @@ def generate_aiced_workflow_featured_image(workflow_token):
     return jsonify(serialize_aiced_workflow(post, handoff, current_tags))
 
 
+@app.post("/api/aiced/workflows/<workflow_token>/publish")
+@require_editor_auth
+def publish_aiced_workflow_article(workflow_token):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{32,64}", workflow_token):
+        return jsonify({"message": "This Aiced workflow is unavailable."}), 404
+    handoff = db.session.execute(db.select(AicedArticleCampaignHandoff).where(AicedArticleCampaignHandoff.workflow_token == workflow_token)).scalar_one_or_none()
+    if handoff is None or handoff.expires_at <= datetime.utcnow():
+        return jsonify({"message": "This Aiced workflow is unavailable."}), 404
+    post = db.session.get(Post, handoff.post_id)
+    if post is None:
+        return jsonify({"message": "This Aiced workflow is unavailable."}), 404
+    if post.status != "draft":
+        return jsonify({"message": "This article has already been published or is unavailable."}), 409
+    validation_error = validate_aiced_post_for_publish(post)
+    if validation_error:
+        return jsonify({"message": validation_error}), 400
+    published_at = datetime.utcnow()
+    post.status = "published"
+    post.published_at = published_at
+    handoff.published_at = published_at
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        return jsonify({"message": "Aiced Bot could not publish this article. Please try again."}), 500
+    current_tags = list(db.session.execute(db.select(SubscriberTag).order_by(SubscriberTag.name)).scalars())
+    return jsonify(serialize_aiced_workflow(post, handoff, current_tags))
+
+
+@app.get("/api/aiced/workflows/<workflow_token>/email-preview")
+@require_editor_auth
+def preview_aiced_workflow_email(workflow_token):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{32,64}", workflow_token):
+        return jsonify({"message": "This Aiced workflow is unavailable."}), 404
+    handoff = db.session.execute(db.select(AicedArticleCampaignHandoff).where(AicedArticleCampaignHandoff.workflow_token == workflow_token)).scalar_one_or_none()
+    post = db.session.get(Post, handoff.post_id) if handoff else None
+    if handoff is None or handoff.expires_at <= datetime.utcnow() or post is None:
+        return jsonify({"message": "This Aiced workflow is unavailable."}), 404
+    if post.status != "published":
+        return jsonify({"message": "Publish the article before previewing this email."}), 409
+    try:
+        rendered = render_newsletter_email(post, handoff.subject, handoff.preheader, get_email_branding(os.environ))
+    except EmailConfigurationError as error:
+        return jsonify({"message": str(error)}), 503
+    except EmailRenderingError as error:
+        return jsonify({"message": str(error)}), 400
+    return jsonify({"html": rendered["html"], "articleUrl": rendered["articleUrl"]})
+
+
+def load_aiced_published_campaign_workflow(workflow_token):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{32,64}", workflow_token):
+        return None, None, (jsonify({"message": "This Aiced workflow is unavailable."}), 404)
+    handoff = db.session.execute(
+        db.select(AicedArticleCampaignHandoff).where(
+            AicedArticleCampaignHandoff.workflow_token == workflow_token
+        )
+    ).scalar_one_or_none()
+    if handoff is None or handoff.expires_at <= datetime.utcnow():
+        return None, None, (jsonify({"message": "This Aiced workflow is unavailable."}), 404)
+    post = db.session.get(Post, handoff.post_id)
+    if post is None or post.status != "published":
+        return None, None, (
+            jsonify({"message": "Publish the article before preparing this campaign."}),
+            409,
+        )
+    return handoff, post, None
+
+
+def campaign_recipients_for(campaign):
+    return list(
+        db.session.execute(
+            db.select(CampaignRecipient)
+            .where(CampaignRecipient.campaign_id == campaign.id)
+            .order_by(CampaignRecipient.id)
+        ).scalars()
+    )
+
+
+@app.post("/api/aiced/workflows/<workflow_token>/campaign/prepare")
+@require_editor_auth
+def prepare_aiced_workflow_campaign(workflow_token):
+    handoff, post, workflow_error = load_aiced_published_campaign_workflow(workflow_token)
+    if workflow_error:
+        return workflow_error
+
+    existing_campaign = db.session.execute(
+        db.select(Campaign).where(Campaign.workflow_handoff_id == handoff.id)
+    ).scalar_one_or_none()
+    if existing_campaign is not None:
+        if existing_campaign.post_id != post.id:
+            return jsonify({"message": "This campaign no longer matches its published article."}), 409
+        recipients = campaign_recipients_for(existing_campaign)
+        delivery = serialize_campaign_delivery(existing_campaign, recipients)
+        return jsonify({"campaign": delivery, "recipients": delivery["recipients"]})
+
+    subscribers = resolve_aiced_handoff_subscribers(handoff)
+    if not subscribers:
+        return jsonify({"message": "No active recipients match this audience."}), 422
+
+    campaign = Campaign(
+        workflow_handoff_id=handoff.id,
+        post_id=post.id,
+        name=handoff.campaign_name,
+        subject=handoff.subject,
+        preheader=handoff.preheader,
+        status=Campaign.STATUS_DRAFT,
+        audience_tag_names=list(handoff.audience_tag_names),
+    )
+    recipients = [
+        CampaignRecipient(
+            campaign=campaign,
+            subscriber_id=subscriber.id,
+            email=normalize_subscriber_email(subscriber.email),
+            name=subscriber_display_name(subscriber),
+            status=CampaignRecipient.STATUS_PENDING,
+        )
+        for subscriber in subscribers
+    ]
+    try:
+        db.session.add(campaign)
+        db.session.flush()
+        db.session.add_all(recipients)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        existing_campaign = db.session.execute(
+            db.select(Campaign).where(Campaign.workflow_handoff_id == handoff.id)
+        ).scalar_one_or_none()
+        if existing_campaign is not None:
+            existing_recipients = campaign_recipients_for(existing_campaign)
+            delivery = serialize_campaign_delivery(existing_campaign, existing_recipients)
+            return jsonify({"campaign": delivery, "recipients": delivery["recipients"]})
+        return jsonify({"message": "Aiced Bot could not prepare this campaign. Please try again."}), 500
+    except SQLAlchemyError:
+        db.session.rollback()
+        return jsonify({"message": "Aiced Bot could not prepare this campaign. Please try again."}), 500
+
+    delivery = serialize_campaign_delivery(campaign, recipients)
+    return jsonify({"campaign": delivery, "recipients": delivery["recipients"]}), 201
+
+
+@app.post("/api/aiced/workflows/<workflow_token>/campaign/send")
+@require_editor_auth
+def send_aiced_workflow_campaign(workflow_token):
+    handoff, post, workflow_error = load_aiced_published_campaign_workflow(workflow_token)
+    if workflow_error:
+        return workflow_error
+
+    campaign = db.session.execute(
+        db.select(Campaign).where(Campaign.workflow_handoff_id == handoff.id)
+    ).scalar_one_or_none()
+    if campaign is None or campaign.post_id != post.id:
+        return jsonify({"message": "Prepare this campaign before sending it."}), 409
+    if campaign.status == Campaign.STATUS_SENT:
+        return jsonify({"message": "This campaign has already been sent."}), 409
+    if campaign.status == Campaign.STATUS_SENDING:
+        return jsonify({"message": "Campaign send is already in progress."}), 409
+
+    recipients = campaign_recipients_for(campaign)
+    if not recipients:
+        return jsonify({"message": "This campaign has no prepared recipients."}), 409
+    if len(recipients) > app.config["AICED_SYNC_SEND_MAX_RECIPIENTS"]:
+        return jsonify({"message": "This campaign exceeds the synchronous demo send limit."}), 422
+    if all(recipient.status == CampaignRecipient.STATUS_SENT for recipient in recipients):
+        return jsonify({"message": "This campaign has already been sent."}), 409
+
+    try:
+        rendered_email = render_newsletter_email(
+            post,
+            campaign.subject,
+            campaign.preheader,
+            get_email_branding(os.environ),
+        )
+    except EmailConfigurationError as error:
+        return jsonify({"message": str(error)}), 503
+    except EmailRenderingError as error:
+        return jsonify({"message": str(error)}), 400
+
+    campaign.status = Campaign.STATUS_SENDING
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        return jsonify({"message": "Campaign send could not be started. Please try again."}), 500
+
+    for recipient in recipients:
+        if recipient.status == CampaignRecipient.STATUS_SENT:
+            continue
+        subscriber = db.session.get(Subscriber, recipient.subscriber_id)
+        if subscriber is None or subscriber.status != Subscriber.STATUS_ACTIVE:
+            recipient.status = CampaignRecipient.STATUS_FAILED
+            recipient.error_message = "Recipient is no longer active."
+            recipient.sent_at = None
+        else:
+            message_id, send_error, _status_code = send_campaign_recipient_email(
+                recipient.email, campaign.subject, rendered_email
+            )
+            if send_error:
+                recipient.status = CampaignRecipient.STATUS_FAILED
+                recipient.error_message = send_error
+                recipient.sent_at = None
+            else:
+                recipient.status = CampaignRecipient.STATUS_SENT
+                recipient.provider_message_id = message_id
+                recipient.error_message = None
+                recipient.sent_at = datetime.utcnow()
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            return jsonify({"message": "Campaign send could not record a recipient result."}), 500
+
+    sent_count = sum(recipient.status == CampaignRecipient.STATUS_SENT for recipient in recipients)
+    failed_count = sum(recipient.status == CampaignRecipient.STATUS_FAILED for recipient in recipients)
+    if sent_count == len(recipients):
+        campaign.status = Campaign.STATUS_SENT
+        campaign.sent_at = datetime.utcnow()
+    elif sent_count:
+        campaign.status = Campaign.STATUS_PARTIAL
+        campaign.sent_at = None
+    else:
+        campaign.status = Campaign.STATUS_FAILED
+        campaign.sent_at = None
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        return jsonify({"message": "Campaign send could not be finalized. Please try again."}), 500
+
+    delivery = serialize_campaign_delivery(campaign, recipients)
+    return jsonify({
+        "campaign": delivery,
+        "message": f"{sent_count} of {len(recipients)} emails submitted; {failed_count} failed.",
+    })
+
+
 @app.post("/api/aiced/workflows/<workflow_token>/revisions")
 @require_editor_auth
 def revise_aiced_workflow(workflow_token):
     data = request.get_json(silent=True)
     instruction = data.get("instruction") if isinstance(data, dict) else None
+    preview_only = data.get("preview", False) if isinstance(data, dict) else False
     if not isinstance(instruction, str) or not instruction.strip() or len(instruction.strip()) > MAXIMUM_AI_CUSTOM_INSTRUCTION_CHARACTERS:
         return jsonify({"message": "instruction must be between 1 and 500 characters."}), 400
+    if not isinstance(preview_only, bool):
+        return jsonify({"message": "preview must be a boolean."}), 400
     if not re.fullmatch(r"[A-Za-z0-9_-]{32,64}", workflow_token):
         return jsonify({"message": "This Aiced workflow is unavailable."}), 404
     handoff = db.session.execute(db.select(AicedArticleCampaignHandoff).where(AicedArticleCampaignHandoff.workflow_token == workflow_token)).scalar_one_or_none()
@@ -2301,6 +2699,24 @@ def revise_aiced_workflow(workflow_token):
         if reference_id:
             body["referenceId"] = reference_id
         return jsonify(body), status_code
+
+    if preview_only:
+        preview = serialize_aiced_workflow(post, handoff, current_tags)
+        preview["summary"] = revision["summary"]
+        preview["revision"] = {
+            "article": revision["article"],
+            "cta": revision["cta"],
+            "campaign": revision["campaign"],
+            "audience": (
+                {
+                    **revision["audience"],
+                    "tags": [tag.name for tag in revision["audience"].get("tags", [])],
+                }
+                if revision["audience"]
+                else None
+            ),
+        }
+        return jsonify(preview)
 
     if revision["article"]:
         article = revision["article"]
