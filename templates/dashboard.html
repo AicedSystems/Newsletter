@@ -10,12 +10,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_shell.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_aiced.css') }}">
     <script src="{{ url_for('static', filename='js/script.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/dashboard_aiced.js') }}" defer></script>
 </head>
 
-<body>
+<body class="admin-page">
+    <div class="admin-shell">{% set admin_nav = 'dashboard' %}{% include '_admin_sidebar.html' %}<div class="admin-content">
     <header class="app-header">
         <div class="theme-selector">
             <label class="visually-hidden" for="theme-selector">
@@ -482,6 +484,7 @@
             </p>
         </section>
     </dialog>
+    </div></div>
 </body>
 
 </html>

@@ -1383,8 +1383,10 @@ def serialize_campaign_delivery(campaign, recipients):
         "pendingCount": pending_count,
         "recipients": [
             {
+                "id": recipient.id,
                 "name": recipient.name or "Subscriber",
                 "email": mask_recipient_email(recipient.email),
+                "status": recipient.status,
             }
             for recipient in recipients
         ],
@@ -1446,6 +1448,22 @@ def serialize_aiced_workflow(post, handoff, current_tags, delivery=None):
         },
         "audience": {"tags": stored_tag_names, "rationale": handoff.audience_rationale, "eligibleRecipientCount": eligible_recipient_count},
         "availableAudienceTags": [tag.name for tag in current_tags],
+    }
+
+
+def serialize_aiced_audience_preview_subscriber(subscriber, selected_tag_names):
+    selected_normalized_names = {
+        normalize_subscriber_tag(name) for name in selected_tag_names
+    }
+    return {
+        "name": subscriber_display_name(subscriber),
+        "email": subscriber.email,
+        "status": "active",
+        "tags": [
+            tag.name
+            for tag in sorted(subscriber.tags, key=lambda tag: tag.name.lower())
+            if tag.normalized_name in selected_normalized_names
+        ],
     }
 
 
@@ -2396,6 +2414,59 @@ def update_aiced_workflow_manually(workflow_token):
     return jsonify(serialize_aiced_workflow(post, handoff, current_tags))
 
 
+@app.get("/api/aiced/workflows/<workflow_token>/audience-preview")
+@require_editor_auth
+def preview_aiced_workflow_audience(workflow_token):
+    """Return a read-only audience preview without preparing a campaign."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{32,64}", workflow_token):
+        return jsonify({"message": "This Aiced workflow is unavailable."}), 404
+
+    handoff = db.session.execute(
+        db.select(AicedArticleCampaignHandoff).where(
+            AicedArticleCampaignHandoff.workflow_token == workflow_token
+        )
+    ).scalar_one_or_none()
+    if handoff is None or handoff.expires_at <= datetime.utcnow():
+        return jsonify({"message": "This Aiced workflow is unavailable."}), 404
+
+    post = db.session.get(Post, handoff.post_id)
+    if post is None or post.status not in {"draft", "published"}:
+        return jsonify({"message": "This Aiced workflow is no longer available for review."}), 409
+
+    campaign = db.session.execute(
+        db.select(Campaign).where(Campaign.workflow_handoff_id == handoff.id)
+    ).scalar_one_or_none()
+    if campaign is not None:
+        recipients = campaign_recipients_for(campaign)
+        return jsonify({
+            "source": "snapshot",
+            "campaignStatus": campaign.status,
+            "matchingCount": len(recipients),
+            "subscribers": [
+                {
+                    "name": recipient.name or "Subscriber",
+                    "email": recipient.email,
+                    "status": recipient.status,
+                    "tags": [],
+                }
+                for recipient in recipients
+            ],
+        })
+
+    subscribers = resolve_aiced_handoff_subscribers(handoff)
+    return jsonify({
+        "source": "live",
+        "campaignStatus": None,
+        "matchingCount": len(subscribers),
+        "subscribers": [
+            serialize_aiced_audience_preview_subscriber(
+                subscriber, handoff.audience_tag_names
+            )
+            for subscriber in subscribers
+        ],
+    })
+
+
 @app.post("/api/aiced/workflows/<workflow_token>/featured-image")
 @require_editor_auth
 def generate_aiced_workflow_featured_image(workflow_token):
@@ -2563,6 +2634,57 @@ def prepare_aiced_workflow_campaign(workflow_token):
 
     delivery = serialize_campaign_delivery(campaign, recipients)
     return jsonify({"campaign": delivery, "recipients": delivery["recipients"]}), 201
+
+
+@app.post("/api/aiced/workflows/<workflow_token>/campaign/recipients/remove")
+@require_editor_auth
+def remove_aiced_workflow_campaign_recipients(workflow_token):
+    """Remove selected people from one prepared, not-yet-sent campaign snapshot."""
+    handoff, post, workflow_error = load_aiced_published_campaign_workflow(workflow_token)
+    if workflow_error:
+        return workflow_error
+
+    payload = request.get_json(silent=True) or {}
+    requested_ids = payload.get("recipientIds")
+    if not isinstance(requested_ids, list) or not requested_ids:
+        return jsonify({"message": "Select at least one prepared recipient to remove."}), 400
+    if len(requested_ids) > 100 or any(
+        not isinstance(recipient_id, int) or isinstance(recipient_id, bool) or recipient_id < 1
+        for recipient_id in requested_ids
+    ):
+        return jsonify({"message": "The selected recipients are invalid."}), 400
+    recipient_ids = set(requested_ids)
+
+    campaign = db.session.execute(
+        db.select(Campaign).where(Campaign.workflow_handoff_id == handoff.id)
+    ).scalar_one_or_none()
+    if campaign is None:
+        return jsonify({"message": "Prepare this campaign before changing recipients."}), 409
+    if campaign.post_id != post.id:
+        return jsonify({"message": "This campaign no longer matches its published article."}), 409
+    if campaign.status != Campaign.STATUS_DRAFT:
+        return jsonify({"message": "Recipients cannot be changed after sending has started."}), 409
+
+    recipients = campaign_recipients_for(campaign)
+    recipients_by_id = {recipient.id: recipient for recipient in recipients}
+    if not recipient_ids.issubset(recipients_by_id):
+        return jsonify({"message": "One or more selected recipients are unavailable."}), 404
+    if len(recipient_ids) >= len(recipients):
+        return jsonify({"message": "Keep at least one recipient before sending this campaign."}), 409
+
+    try:
+        for recipient_id in recipient_ids:
+            db.session.delete(recipients_by_id[recipient_id])
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        return jsonify({"message": "Selected recipients could not be removed. Please try again."}), 500
+
+    remaining_recipients = [
+        recipient for recipient in recipients if recipient.id not in recipient_ids
+    ]
+    delivery = serialize_campaign_delivery(campaign, remaining_recipients)
+    return jsonify({"campaign": delivery, "recipients": delivery["recipients"]})
 
 
 @app.post("/api/aiced/workflows/<workflow_token>/campaign/send")

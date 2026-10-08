@@ -8,6 +8,7 @@ const reviewStatus = document.querySelector("#aiced-review-status");
 const newButtons = [document.querySelector("#aiced-new-button"), document.querySelector("#aiced-review-new-button")];
 const sidebar = document.querySelector("#aiced-sidebar");
 const menuButton = document.querySelector("#aiced-menu-button");
+const sidebarCollapseButton = document.querySelector("#aiced-sidebar-collapse");
 const articleContent = document.querySelector("#aiced-article-content");
 const articleExpandedLayout = document.querySelector("#aiced-article-expanded-layout");
 const articleToggle = document.querySelector("#aiced-article-toggle");
@@ -20,7 +21,6 @@ const liveArticleLink = document.querySelector("#aiced-live-article");
 const sendCampaignButton = document.querySelector("#aiced-send-campaign-button");
 const sendConfirmation = document.querySelector("#aiced-send-confirmation");
 const sendConfirmationSummary = document.querySelector("#aiced-send-confirmation-summary");
-const sendRecipientList = document.querySelector("#aiced-send-recipient-list");
 const sendCancelButton = document.querySelector("#aiced-send-cancel");
 const sendConfirmButton = document.querySelector("#aiced-send-confirm");
 const proposalNavigation = document.querySelector("#aiced-proposal-nav");
@@ -31,6 +31,15 @@ const proposalPreviousButtons = [document.querySelector("#aiced-proposal-previou
 const proposalNextButtons = [document.querySelector("#aiced-proposal-next"), document.querySelector("#aiced-proposal-next-top")];
 const proposalNextButton = document.querySelector("#aiced-proposal-next");
 const refineSuggestions = document.querySelector("#aiced-refine-suggestions");
+const audiencePreviewTable = document.querySelector("#aiced-audience-preview-table");
+const audiencePreviewList = document.querySelector("#aiced-audience-preview-list");
+const audiencePreviewMessage = document.querySelector("#aiced-audience-preview-message");
+const campaignReadyIntro = document.querySelector("#aiced-campaign-ready-intro");
+const campaignReviewCount = document.querySelector("#aiced-campaign-review-count");
+const campaignReviewSubject = document.querySelector("#aiced-campaign-review-subject");
+const campaignReviewRecipients = document.querySelector("#aiced-campaign-review-recipient-list");
+const campaignReviewEmpty = document.querySelector("#aiced-campaign-review-empty");
+const removeRecipientsButton = document.querySelector("#aiced-remove-recipients");
 
 let isGenerating = false;
 let reviewedProposal = null;
@@ -45,13 +54,15 @@ let refineComposerExpanded = false;
 let pendingReviewEntries = [];
 let pendingReviewHeading = "Aiced proposed changes";
 let pendingReviewSummary = "";
+let selectedCampaignRecipientIds = new Set();
 
 const proposalSteps = [
     { label: "Article", next: "Call to Action", placeholder: "Ask Aiced to rewrite, expand, or refine your article…", prompts: [["Make it shorter", "Make the article shorter while keeping the important details."], ["More conversational", "Make the article more conversational and approachable."], ["Improve the headline", "Improve the article headline for clarity and interest."], ["Add more detail", "Add more useful detail to the article."], ["Change the tone", "Make the article warmer and more welcoming."]] },
     { label: "Call to Action", next: "Campaign Details", placeholder: "Ask Aiced to improve your call to action…", prompts: [["Make it softer", "Make the call to action softer and less salesy."], ["Make it more direct", "Make the call to action more direct."], ["Change the button text", "Rewrite the call-to-action button text."], ["Less salesy", "Make the call to action feel less salesy."]] },
     { label: "Campaign Details", next: "Audience", placeholder: "Ask Aiced to improve your subject or preheader…", prompts: [["Shorter subject", "Make the campaign subject shorter."], ["More curiosity", "Make the campaign subject more curiosity-driven."], ["Warmer tone", "Make the campaign copy warmer."], ["Rewrite the preheader", "Rewrite the campaign preheader."]] },
-    { label: "Audience", next: "Email Preview", placeholder: "Ask Aiced to refine your campaign audience…", prompts: [["Explain this audience", "Explain why this audience is a good fit."], ["Narrow the audience", "Narrow the campaign audience to the most relevant existing tags."], ["Change the audience", "Suggest a different audience using only existing tags."]] },
-    { label: "Email Preview", next: null, placeholder: "Ask Aiced to improve your email campaign…", prompts: [["Improve the subject", "Improve the email subject line."], ["Make it warmer", "Make the email campaign warmer."], ["More concise", "Make the email campaign more concise."]] },
+    { label: "Audience", next: null, placeholder: "Ask Aiced to refine your campaign audience…", prompts: [["Explain this audience", "Explain why this audience is a good fit."], ["Narrow the audience", "Narrow the campaign audience to the most relevant existing tags."], ["Change the audience", "Suggest a different audience using only existing tags."]] },
+    { label: "Email Preview", next: "Review Campaign", placeholder: "Ask Aiced to improve your email campaign…", prompts: [["Improve the subject", "Improve the email subject line."], ["Make it warmer", "Make the email campaign warmer."], ["More concise", "Make the email campaign more concise."]], publishedOnly: true },
+    { label: "Review Campaign", next: null, placeholder: "Ask Aiced to refine your campaign…", prompts: [], publishedOnly: true },
 ];
 
 function isDraftProposal() {
@@ -75,19 +86,25 @@ function renderRefineSuggestions() {
 }
 
 function setActiveProposalStep(nextStep, { focus = false } = {}) {
-    activeProposalStep = Math.max(0, Math.min(proposalSteps.length - 1, Number(nextStep) || 0));
     const draft = isDraftProposal();
-    proposalPanels.forEach((panel, index) => { panel.hidden = draft && index !== activeProposalStep; });
+    const lastAvailableStep = draft ? 3 : proposalSteps.length - 1;
+    activeProposalStep = Math.max(0, Math.min(lastAvailableStep, Number(nextStep) || 0));
+    proposalPanels.forEach((panel, index) => {
+        const campaignPreviewPanel = !draft && activeProposalStep === 4 && [2, 3, 4].includes(index);
+        panel.hidden = !campaignPreviewPanel && index !== activeProposalStep;
+    });
     proposalStepButtons.forEach((button, index) => {
         const active = index === activeProposalStep;
         button.classList.toggle("is-active", active);
         button.setAttribute("aria-current", active ? "step" : "false");
+        button.disabled = (draft && index > 3) || (!draft && (index < 4 || (index === 5 && !campaignDelivery)));
         if (active && focus) button.focus();
     });
-    proposalPosition.textContent = `${String(activeProposalStep + 1).padStart(2, "0")} / 05`;
+    proposalPosition.textContent = `${String(activeProposalStep + 1).padStart(2, "0")} / ${String(lastAvailableStep + 1).padStart(2, "0")}`;
     proposalPreviousButtons.forEach((button) => { button.disabled = activeProposalStep === 0; });
-    proposalNextButtons.forEach((button) => { button.disabled = activeProposalStep === proposalSteps.length - 1; });
-    proposalNextButton.textContent = activeProposalStep === proposalSteps.length - 1 ? "Review complete" : `Next: ${proposalSteps[activeProposalStep].next} →`;
+    proposalNextButtons.forEach((button) => { button.disabled = activeProposalStep === lastAvailableStep; });
+    proposalNextButton.textContent = activeProposalStep === lastAvailableStep ? "Review complete" : `Next: ${proposalSteps[activeProposalStep].next} →`;
+    campaignReadyIntro.hidden = draft || activeProposalStep === 5;
     refineRequest.placeholder = proposalSteps[activeProposalStep].placeholder;
     renderRefineSuggestions();
 }
@@ -113,6 +130,60 @@ function setManualEditingEnabled(enabled) {
     fullEditor.href = enabled ? `/posts/new/build?edit=${savedWorkflow.postId}&workflow=${encodeURIComponent(savedWorkflow.workflowToken)}` : "";
 }
 
+function audiencePreviewStatusLabel(status, source) {
+    if (source === "live") return "Active";
+    return { pending: "Prepared", sent: "Sent", failed: "Failed" }[status] || "Prepared";
+}
+
+function renderAudiencePreview(preview) {
+    audiencePreviewList.replaceChildren();
+    audiencePreviewTable.hidden = true;
+    if (!preview) {
+        audiencePreviewMessage.textContent = "Save this proposal to preview matching active subscribers.";
+        return;
+    }
+    const subscribers = Array.isArray(preview.subscribers) ? preview.subscribers : [];
+    if (!subscribers.length) {
+        audiencePreviewMessage.textContent = preview.source === "snapshot"
+            ? "This campaign snapshot has no recipients."
+            : "No active subscribers currently match every selected tag.";
+        return;
+    }
+    audiencePreviewMessage.textContent = preview.source === "snapshot"
+        ? `Showing the frozen ${preview.campaignStatus === "sent" ? "send" : "prepared"} recipient snapshot.`
+        : `${preview.matchingCount} matching active subscriber${preview.matchingCount === 1 ? "" : "s"}.`;
+    subscribers.forEach((subscriber) => {
+        const row = document.createElement("tr");
+        const name = document.createElement("td"); name.textContent = subscriber.name || "Subscriber";
+        const email = document.createElement("td"); email.textContent = subscriber.email || "—";
+        const tags = document.createElement("td");
+        (subscriber.tags || []).forEach((tag) => { const chip = document.createElement("span"); chip.textContent = tag; tags.append(chip); });
+        if (!tags.childNodes.length) tags.textContent = "—";
+        const status = document.createElement("td"); status.className = "aiced-audience-preview__status";
+        status.textContent = audiencePreviewStatusLabel(subscriber.status, preview.source);
+        row.append(name, email, tags, status); audiencePreviewList.append(row);
+    });
+    audiencePreviewTable.hidden = false;
+}
+
+async function loadAudiencePreview() {
+    if (!savedWorkflow) { renderAudiencePreview(null); return; }
+    const workflowToken = savedWorkflow.workflowToken;
+    audiencePreviewMessage.textContent = "Loading matching subscribers…";
+    audiencePreviewTable.hidden = true;
+    try {
+        const response = await fetch(`/api/aiced/workflows/${encodeURIComponent(workflowToken)}/audience-preview`);
+        const preview = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(preview.message || "Matching subscribers are unavailable.");
+        if (savedWorkflow?.workflowToken !== workflowToken) return;
+        renderAudiencePreview(preview);
+    } catch (error) {
+        if (savedWorkflow?.workflowToken !== workflowToken) return;
+        audiencePreviewMessage.textContent = error.message || "Matching subscribers are unavailable.";
+        audiencePreviewTable.hidden = true;
+    }
+}
+
 async function loadPublishedEmailPreview() {
     if (!savedWorkflow) return;
     const frame = document.querySelector("#aiced-email-rendered-preview");
@@ -132,12 +203,15 @@ function setPublishedState() {
     setManualEditingEnabled(false);
     review.classList.remove("aiced-review--draft");
     review.classList.add("aiced-review--published");
-    proposalNavigation.hidden = true;
-    proposalPanels.forEach((panel) => { panel.hidden = false; });
+    proposalNavigation.hidden = false;
+    campaignReadyIntro.hidden = false;
     const path = reviewedProposal.article.publicArticlePath;
     liveArticleLink.hidden = !path; liveArticleLink.href = path || "";
     setStatus(reviewStatus, "Article published — campaign review is ready.");
+    loadAudiencePreview();
     loadPublishedEmailPreview();
+    renderCampaignReview(campaignDelivery);
+    setActiveProposalStep(4);
     syncCampaignControls();
 }
 
@@ -153,14 +227,91 @@ function renderSendConfirmation(delivery) {
     campaignDelivery = delivery;
     const count = Number(delivery?.recipientCount) || 0;
     sendConfirmationSummary.textContent = `${count} prepared active recipient${count === 1 ? "" : "s"}.`;
-    sendRecipientList.replaceChildren();
-    (delivery?.recipients || []).forEach((recipient) => {
-        const item = document.createElement("li");
-        item.textContent = `${recipient.name || "Subscriber"} — ${recipient.email || "hidden"}`;
-        sendRecipientList.append(item);
-    });
-    sendConfirmButton.textContent = `Send to ${count} recipient${count === 1 ? "" : "s"}`;
+    renderCampaignReview(delivery);
+    sendConfirmButton.textContent = `Send campaign to ${count} recipient${count === 1 ? "" : "s"}`;
     sendConfirmation.hidden = false;
+}
+
+function renderCampaignReview(delivery) {
+    const recipients = Array.isArray(delivery?.recipients) ? delivery.recipients : [];
+    const canEditRecipients = delivery?.status === "draft";
+    selectedCampaignRecipientIds = new Set([...selectedCampaignRecipientIds].filter((id) => recipients.some((recipient) => recipient.id === id)));
+    campaignReviewCount.textContent = String(Number(delivery?.recipientCount) || recipients.length || 0);
+    campaignReviewSubject.textContent = reviewedProposal?.campaign?.subject || "—";
+    campaignReviewRecipients.replaceChildren();
+    recipients.forEach((recipient) => {
+        const item = document.createElement("li");
+        item.classList.toggle("is-selectable", canEditRecipients);
+        if (canEditRecipients) {
+            const select = document.createElement("input");
+            select.type = "checkbox";
+            select.value = String(recipient.id);
+            select.checked = selectedCampaignRecipientIds.has(recipient.id);
+            select.setAttribute("aria-label", `Select ${recipient.name || "subscriber"}`);
+            select.addEventListener("change", () => {
+                if (select.checked) selectedCampaignRecipientIds.add(recipient.id);
+                else selectedCampaignRecipientIds.delete(recipient.id);
+                syncRemoveRecipientsButton();
+            });
+            item.append(select);
+        }
+        const initials = document.createElement("span");
+        initials.className = "aiced-campaign-review__avatar";
+        initials.textContent = (recipient.name || "Subscriber").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "S";
+        const details = document.createElement("span");
+        const name = document.createElement("strong"); name.textContent = recipient.name || "Subscriber";
+        const email = document.createElement("small"); email.textContent = recipient.email || "hidden";
+        details.append(name, email);
+        const state = document.createElement("span");
+        state.className = "aiced-campaign-review__recipient-state";
+        const recipientState = recipient.status || delivery?.status;
+        state.textContent = recipientState === "sent" ? "Sent" : recipientState === "failed" ? "Failed" : "Prepared";
+        item.append(initials, details, state);
+        campaignReviewRecipients.append(item);
+    });
+    campaignReviewEmpty.hidden = recipients.length > 0;
+    syncRemoveRecipientsButton();
+}
+
+function syncRemoveRecipientsButton() {
+    const canEditRecipients = campaignDelivery?.status === "draft";
+    removeRecipientsButton.hidden = !canEditRecipients;
+    removeRecipientsButton.disabled = !canEditRecipients || selectedCampaignRecipientIds.size === 0 || isCampaignProcessing;
+    removeRecipientsButton.textContent = selectedCampaignRecipientIds.size
+        ? `Remove selected (${selectedCampaignRecipientIds.size})`
+        : "Remove selected";
+}
+
+async function removeSelectedCampaignRecipients() {
+    if (isCampaignProcessing || !savedWorkflow || !selectedCampaignRecipientIds.size) return;
+    isCampaignProcessing = true;
+    syncRemoveRecipientsButton();
+    try {
+        const response = await fetch(`/api/aiced/workflows/${encodeURIComponent(savedWorkflow.workflowToken)}/campaign/recipients/remove`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ recipientIds: [...selectedCampaignRecipientIds] }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.campaign) throw new Error(result.message || "Selected recipients could not be removed.");
+        campaignDelivery = { ...result.campaign, recipients: result.recipients || result.campaign.recipients || [] };
+        reviewedProposal.campaign.delivery = campaignDelivery;
+        selectedCampaignRecipientIds = new Set();
+        renderCampaignReview(campaignDelivery);
+        loadAudiencePreview();
+        setStatus(reviewStatus, "Selected recipients were removed from this prepared campaign.");
+    } catch (error) {
+        setStatus(reviewStatus, error.message || "Selected recipients could not be removed.", true);
+    } finally {
+        isCampaignProcessing = false;
+        syncRemoveRecipientsButton();
+    }
+}
+
+function renderPreparedCampaignReview(delivery) {
+    selectedCampaignRecipientIds = new Set();
+    renderSendConfirmation(delivery);
+    setActiveProposalStep(5, { focus: true });
 }
 
 function syncCampaignControls() {
@@ -168,10 +319,11 @@ function syncCampaignControls() {
     sendCampaignButton.hidden = false;
     if (!campaignDelivery) {
         sendCampaignButton.disabled = false;
-        sendCampaignButton.textContent = "Send Campaign";
+        sendCampaignButton.textContent = "Prepare campaign";
         return;
     }
     if (campaignDelivery.status === "sent") {
+        renderCampaignReview(campaignDelivery);
         sendCampaignButton.disabled = true;
         sendCampaignButton.textContent = "Campaign Sent";
         return;
@@ -183,12 +335,12 @@ function syncCampaignControls() {
     }
     sendCampaignButton.disabled = false;
     sendCampaignButton.textContent = "Review prepared campaign";
-    renderSendConfirmation(campaignDelivery);
+    renderCampaignReview(campaignDelivery);
 }
 
 async function prepareCampaign() {
     if (isCampaignProcessing || !savedWorkflow) return;
-    if (campaignDelivery?.status === "draft") { renderSendConfirmation(campaignDelivery); return; }
+    if (campaignDelivery?.status === "draft") { renderPreparedCampaignReview(campaignDelivery); return; }
     isCampaignProcessing = true;
     sendCampaignButton.disabled = true;
     sendCampaignButton.textContent = "Preparing…";
@@ -198,7 +350,8 @@ async function prepareCampaign() {
         if (!response.ok || !result.campaign) throw new Error(result.message || "Campaign could not be prepared.");
         campaignDelivery = { ...result.campaign, recipients: result.recipients || result.campaign.recipients || [] };
         reviewedProposal.campaign.delivery = campaignDelivery;
-        renderSendConfirmation(campaignDelivery);
+        loadAudiencePreview();
+        renderPreparedCampaignReview(campaignDelivery);
         setStatus(reviewStatus, campaignResultMessage(campaignDelivery));
     } catch (error) {
         setStatus(reviewStatus, error.message || "Campaign could not be prepared.", true);
@@ -220,6 +373,7 @@ async function sendPreparedCampaign() {
         if (!response.ok || !result.campaign) throw new Error(result.message || "Campaign could not be sent.");
         campaignDelivery = { ...result.campaign, recipients: campaignDelivery.recipients || [] };
         reviewedProposal.campaign.delivery = campaignDelivery;
+        loadAudiencePreview();
         sendConfirmation.hidden = true;
         setStatus(reviewStatus, campaignResultMessage(campaignDelivery), campaignDelivery.status !== "sent");
     } catch (error) {
@@ -447,15 +601,32 @@ function setArticleExpanded(isExpanded) {
     articleToggle.append(arrow);
 }
 
+function clearManualEditingUi() {
+    document.querySelectorAll(".aiced-card-edit-form, .aiced-inline-edit-cancel, .aiced-inline-edit-error").forEach((element) => element.remove());
+    document.querySelectorAll(".aiced-review-card--cta").forEach((card) => {
+        if (card.dataset.inlineEditing !== "true") return;
+        setInlineCtaFieldsEditable(card, false);
+        delete card.dataset.inlineEditing;
+        const editButton = card.querySelector('[data-card-edit="cta"]');
+        if (editButton) {
+            editButton.disabled = false;
+            editButton.textContent = "Edit";
+        }
+    });
+}
+
 function renderProposal(proposal, { resetStep = true } = {}) {
+    clearManualEditingUi();
     const { article, campaign, audience } = proposal;
     const contentBlocks = Array.isArray(article.contentBlocks) ? article.contentBlocks : [];
     const cta = contentBlocks.find((block) => block.type === "cta") || {};
     reviewedProposal = proposal;
     campaignDelivery = campaign.delivery || null;
+    selectedCampaignRecipientIds = new Set();
     review.classList.toggle("aiced-review--draft", !proposal.workflow || proposal.workflow.status === "draft");
     review.classList.toggle("aiced-review--published", proposal.workflow?.status === "published");
     proposalNavigation.hidden = !isDraftProposal();
+    campaignReadyIntro.hidden = true;
     document.querySelector("#aiced-workflow-title").textContent = campaign.name || article.title || "Your new campaign";
     document.querySelector("#aiced-workflow-status").textContent = proposal.workflow?.status === "published" ? "Published" : "Draft";
     document.querySelector("#aiced-workflow-updated").textContent = proposal.workflow ? "Saved campaign workspace" : "Ready to review";
@@ -487,6 +658,7 @@ function renderProposal(proposal, { resetStep = true } = {}) {
     document.querySelector("#aiced-audience-rationale").textContent = audience.rationale;
     const count = Number(audience.eligibleRecipientCount) || 0;
     document.querySelector("#aiced-audience-count").textContent = `${count} eligible active recipient${count === 1 ? "" : "s"}`;
+    renderAudiencePreview(null);
 
     document.querySelector("#aiced-email-headline").textContent = article.title;
     document.querySelector("#aiced-email-summary").textContent = article.excerpt;
@@ -535,6 +707,7 @@ function markWorkflowSaved(workflow, summary) {
     setRevisionComposerEnabled(true);
     setManualEditingEnabled(true);
     renderFeaturedImage(reviewedProposal.article);
+    loadAudiencePreview();
     setStatus(reviewStatus, summary || "Saved — your article draft and campaign setup are ready.");
 }
 
@@ -863,6 +1036,7 @@ function resetWorkspace() {
     savedWorkflow = null;
     isRevising = false;
     campaignDelivery = null;
+    selectedCampaignRecipientIds = new Set();
     activeProposalStep = 0;
     refineComposerExpanded = false;
     pendingReviewEntries = [];
@@ -870,6 +1044,7 @@ function resetWorkspace() {
     pendingReviewSummary = "";
     review.classList.remove("aiced-review--draft", "aiced-review--published");
     proposalNavigation.hidden = false;
+    campaignReadyIntro.hidden = true;
     approveButton.disabled = true;
     approveButton.textContent = "Approve & Continue →";
     approveButton.hidden = false;
@@ -915,6 +1090,7 @@ articleToggle.addEventListener("click", () => {
 approveButton.addEventListener("click", approveReviewedProposal);
 publishButton.addEventListener("click", publishArticleAndContinue);
 sendCampaignButton.addEventListener("click", prepareCampaign);
+removeRecipientsButton.addEventListener("click", removeSelectedCampaignRecipients);
 sendCancelButton.addEventListener("click", () => { sendConfirmation.hidden = true; });
 sendConfirmButton.addEventListener("click", sendPreparedCampaign);
 document.querySelectorAll("[data-card-edit]").forEach((button) => {
@@ -940,5 +1116,18 @@ menuButton.addEventListener("click", () => {
     const isOpen = sidebar.classList.toggle("is-open");
     menuButton.setAttribute("aria-expanded", String(isOpen));
 });
+if (sidebarCollapseButton) {
+    const collapsed = sessionStorage.getItem("aicedWorkspaceSidebarCollapsed") === "true";
+    document.querySelector(".aiced-shell").classList.toggle("is-sidebar-collapsed", collapsed);
+    sidebarCollapseButton.setAttribute("aria-expanded", String(!collapsed));
+    sidebarCollapseButton.textContent = collapsed ? "›" : "‹";
+    sidebarCollapseButton.addEventListener("click", () => {
+        const shell = document.querySelector(".aiced-shell");
+        const isCollapsed = shell.classList.toggle("is-sidebar-collapsed");
+        sidebarCollapseButton.setAttribute("aria-expanded", String(!isCollapsed));
+        sidebarCollapseButton.textContent = isCollapsed ? "›" : "‹";
+        sessionStorage.setItem("aicedWorkspaceSidebarCollapsed", String(isCollapsed));
+    });
+}
 
 restoreWorkflowFromUrl();

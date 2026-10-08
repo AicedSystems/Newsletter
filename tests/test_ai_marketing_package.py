@@ -712,6 +712,58 @@ class AiMarketingPackageTests(unittest.TestCase):
         response = self.client.post(f"/api/aiced/workflows/{'S' * 43}/campaign/prepare")
         self.assertEqual(response.status_code, 401)
 
+    def test_draft_audience_preview_uses_the_existing_fail_closed_resolver_without_persistence(self):
+        handoff, post = persisted_handoff(), persisted_draft_post()
+        subscriber = SimpleNamespace(
+            email="james@example.com",
+            first_name="James",
+            last_name="Smith",
+            status="active",
+            tags=[tags()[0], tags()[1]],
+        )
+        with patch.object(
+            app_module.db.session, "execute", side_effect=[SingleResult(handoff), SingleResult(None)]
+        ), patch.object(app_module.db.session, "get", return_value=post), patch.object(
+            app_module, "resolve_aiced_handoff_subscribers", return_value=[subscriber]
+        ) as resolve, patch.object(app_module.db.session, "add") as add, patch.object(
+            app_module.db.session, "commit"
+        ) as commit:
+            response = self.client.get(
+                f"/api/aiced/workflows/{'V' * 43}/audience-preview", headers=auth_header()
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["source"], "live")
+        self.assertEqual(response.get_json()["subscribers"][0]["tags"], ["First-Time Buyer", "Palmdale"])
+        resolve.assert_called_once_with(handoff)
+        add.assert_not_called()
+        commit.assert_not_called()
+
+    def test_audience_preview_uses_existing_campaign_recipients_as_the_frozen_snapshot(self):
+        handoff, post = persisted_handoff(), persisted_draft_post()
+        post.status = "published"
+        campaign = SimpleNamespace(id=99, status="sent")
+        recipients = [SimpleNamespace(name="James Smith", email="james@example.com", status="sent")]
+        with patch.object(
+            app_module.db.session,
+            "execute",
+            side_effect=[SingleResult(handoff), SingleResult(campaign), ScalarResult(recipients)],
+        ), patch.object(app_module.db.session, "get", return_value=post), patch.object(
+            app_module, "resolve_aiced_handoff_subscribers"
+        ) as resolve, patch.object(app_module.db.session, "add") as add, patch.object(
+            app_module.db.session, "commit"
+        ) as commit:
+            response = self.client.get(
+                f"/api/aiced/workflows/{'W' * 43}/audience-preview", headers=auth_header()
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["source"], "snapshot")
+        self.assertEqual(response.get_json()["subscribers"][0]["status"], "sent")
+        resolve.assert_not_called()
+        add.assert_not_called()
+        commit.assert_not_called()
+
     def test_campaign_prepare_creates_one_frozen_campaign_and_recipient_snapshots(self):
         handoff = persisted_handoff()
         post = persisted_draft_post()
@@ -749,7 +801,10 @@ class AiMarketingPackageTests(unittest.TestCase):
         body = response.get_json()
         self.assertEqual(body["campaign"]["recipientCount"], 2)
         self.assertEqual(body["campaign"]["status"], "draft")
-        self.assertEqual(body["recipients"][0], {"name": "Steven Armijo", "email": "s***@example.com"})
+        self.assertEqual(
+            body["recipients"][0],
+            {"id": None, "name": "Steven Armijo", "email": "s***@example.com", "status": "pending"},
+        )
         campaign = added[0]
         self.assertEqual(campaign.workflow_handoff_id, handoff.id)
         self.assertEqual(campaign.post_id, post.id)
@@ -803,6 +858,56 @@ class AiMarketingPackageTests(unittest.TestCase):
         self.assertEqual(response.get_json()["campaign"]["recipientCount"], 1)
         resolve.assert_not_called()
         add.assert_not_called()
+        commit.assert_not_called()
+
+    def test_campaign_recipient_removal_updates_only_the_prepared_snapshot(self):
+        handoff = persisted_handoff()
+        post = persisted_draft_post()
+        post.status = "published"
+        campaign = Campaign(id=99, workflow_handoff_id=handoff.id, post_id=post.id, name="Campaign", subject="Subject", preheader="Preheader", audience_tag_names=[], status="draft")
+        first = CampaignRecipient(id=1, campaign_id=99, subscriber_id=10, email="one@example.com", name="One", status="pending")
+        second = CampaignRecipient(id=2, campaign_id=99, subscriber_id=11, email="two@example.com", name="Two", status="pending")
+        with patch.object(
+            app_module.db.session,
+            "execute",
+            side_effect=[SingleResult(handoff), SingleResult(campaign), ScalarResult([first, second])],
+        ), patch.object(app_module.db.session, "get", return_value=post), patch.object(
+            app_module.db.session, "delete"
+        ) as delete, patch.object(app_module.db.session, "commit") as commit:
+            response = self.client.post(
+                f"/api/aiced/workflows/{'R' * 43}/campaign/recipients/remove",
+                headers=auth_header(),
+                json={"recipientIds": [1]},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["campaign"]["recipientCount"], 1)
+        self.assertEqual(response.get_json()["recipients"][0]["id"], 2)
+        delete.assert_called_once_with(first)
+        commit.assert_called_once()
+
+    def test_campaign_recipient_removal_refuses_to_empty_or_change_sent_campaigns(self):
+        handoff = persisted_handoff()
+        post = persisted_draft_post()
+        post.status = "published"
+        campaign = Campaign(id=99, workflow_handoff_id=handoff.id, post_id=post.id, name="Campaign", subject="Subject", preheader="Preheader", audience_tag_names=[], status="draft")
+        recipient = CampaignRecipient(id=1, campaign_id=99, subscriber_id=10, email="one@example.com", name="One", status="pending")
+        with patch.object(
+            app_module.db.session,
+            "execute",
+            side_effect=[SingleResult(handoff), SingleResult(campaign), ScalarResult([recipient])],
+        ), patch.object(app_module.db.session, "get", return_value=post), patch.object(
+            app_module.db.session, "delete"
+        ) as delete, patch.object(app_module.db.session, "commit") as commit:
+            response = self.client.post(
+                f"/api/aiced/workflows/{'Q' * 43}/campaign/recipients/remove",
+                headers=auth_header(),
+                json={"recipientIds": [1]},
+            )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("Keep at least one recipient", response.get_json()["message"])
+        delete.assert_not_called()
         commit.assert_not_called()
 
     def test_campaign_send_submits_each_pending_snapshot_once_and_records_result(self):

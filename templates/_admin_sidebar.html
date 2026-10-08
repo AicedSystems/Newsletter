@@ -1,0 +1,21 @@
+<aside class="admin-sidebar" aria-label="Primary navigation">
+    <div class="admin-sidebar__top">
+        <a class="admin-sidebar__brand" href="{{ url_for('dashboard') }}">
+        <img src="{{ url_for('static', filename='images/aicedbot-wave.png') }}" alt="">
+        <span>Aiced</span>
+        </a>
+        <button class="admin-sidebar__toggle" type="button" aria-label="Collapse navigation" aria-expanded="true">‹</button>
+    </div>
+    <nav class="admin-sidebar__nav">
+        <a data-short="D" class="{% if admin_nav == 'dashboard' %}is-current{% endif %}" href="{{ url_for('dashboard') }}">Dashboard</a>
+        <a data-short="A" class="{% if admin_nav == 'aiced' %}is-current{% endif %}" href="/aiced">Aiced</a>
+        <a data-short="C" class="{% if admin_nav == 'campaigns' %}is-current{% endif %}" href="{{ url_for('new_campaign') }}">Campaigns</a>
+        <a data-short="R" class="{% if admin_nav == 'articles' %}is-current{% endif %}" href="{{ url_for('new_post') }}">Articles</a>
+        <a data-short="S" class="{% if admin_nav == 'subscribers' %}is-current{% endif %}" href="{{ url_for('subscribers') }}">Subscribers</a>
+    </nav>
+    <nav class="admin-sidebar__nav admin-sidebar__nav--future" aria-label="Future navigation">
+        <span>Analytics <small>Coming soon</small></span>
+        <span>Settings <small>Coming soon</small></span>
+    </nav>
+</aside>
+<script src="{{ url_for('static', filename='js/admin_shell.js') }}" defer></script>

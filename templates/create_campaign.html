@@ -11,13 +11,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_shell.css') }}">
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/create_campaign.css') }}">
 
     <script src="{{ url_for('static', filename='js/create_campaign.js', v='campaign-email-compose-v4') }}" defer></script>
 </head>
 
-<body>
+<body class="admin-page">
+<div class="admin-shell">{% set admin_nav = 'campaigns' %}{% include '_admin_sidebar.html' %}<div class="admin-content">
 <header class="app-header">
     <div class="theme-selector">
         <label class="visually-hidden" for="theme-selector">
@@ -408,5 +410,6 @@
         </p>
     </section>
 </dialog>
+</div></div>
 </body>
 </html>

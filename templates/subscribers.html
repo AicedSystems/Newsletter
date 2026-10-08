@@ -5,18 +5,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#050b14">
-    <title>Subscribers | Rise Dashboard</title>
+    <title>Subscribers | Aiced</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_shell.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/aiced_workspace.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/subscribers.css') }}">
     <script src="{{ url_for('static', filename='js/subscribers.js') }}" defer></script>
 </head>
 
-<body>
-    <header class="app-header">
-        <div class="theme-selector">
+<body class="admin-page subscribers-page">
+    <div class="admin-shell">
+        {% set admin_nav = 'subscribers' %}{% include '_admin_sidebar.html' %}
+        <div class="theme-selector subscribers-theme-selector" aria-hidden="true">
             <label class="visually-hidden" for="theme-selector">Select color theme</label>
             <select id="theme-selector" class="theme-selector__select">
                 <option value="midnight">Midnight Gold</option>
@@ -24,18 +27,14 @@
                 <option value="sage">Sage Estate</option>
             </select>
         </div>
-        <nav class="top-navigation" aria-label="Main navigation">
-            <a class="subscribers-page__dashboard-link" href="{{ url_for('dashboard') }}">← Dashboard</a>
-        </nav>
-    </header>
-
-    <main class="subscribers-page" id="main-content">
+    <main class="subscribers-main" id="main-content">
         <section class="subscribers-workspace" aria-labelledby="subscribers-title">
             <header class="subscribers-workspace__header">
                 <div>
                     <h1 id="subscribers-title">Subscribers</h1>
                     <p>Manage the people who have opted in to receive your newsletter.</p>
                 </div>
+                <button class="subscribers-button subscribers-button--accent" id="add-subscriber-button" type="button"><span aria-hidden="true">＋</span> Add subscriber</button>
             </header>
 
             <section class="subscriber-counts" aria-label="Subscriber counts">
@@ -57,7 +56,7 @@
                 </select>
                 <label class="visually-hidden" for="subscriber-tag-filter">Filter by tag</label>
                 <select id="subscriber-tag-filter"><option value="">All tags</option></select>
-                <button class="subscribers-button subscribers-button--accent" id="add-subscriber-button" type="button">Add subscriber</button>
+                <p class="subscriber-match-count" id="subscriber-match-count" aria-live="polite"></p>
             </section>
 
             <p class="subscriber-status-message" id="subscriber-status-message" aria-live="polite"></p>
@@ -74,13 +73,14 @@
                 </div>
                 <table class="subscriber-table" id="subscriber-table">
                     <thead>
-                        <tr><th>Name</th><th>Email</th><th>Tags</th><th>Status</th><th>Added</th><th><span class="visually-hidden">Actions</span></th></tr>
+                        <tr><th>Name</th><th>Email</th><th>Tags</th><th>Status</th><th>Added</th><th>Actions</th></tr>
                     </thead>
                     <tbody id="subscriber-list"></tbody>
                 </table>
             </section>
         </section>
     </main>
+    </div>
 
     <dialog class="subscriber-dialog" id="subscriber-dialog" aria-labelledby="subscriber-dialog-title">
         <form id="subscriber-form" novalidate>

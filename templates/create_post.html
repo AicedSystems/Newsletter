@@ -19,6 +19,7 @@
         rel="stylesheet"
         href="{{ url_for('static', filename='css/styles.css') }}"
     >
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_shell.css') }}">
 
     <link
         rel="stylesheet"
@@ -41,7 +42,8 @@
     ></script>
 </head>
 
-<body>
+<body class="admin-page">
+    <div class="admin-shell">{% set admin_nav = 'articles' %}{% include '_admin_sidebar.html' %}<div class="admin-content">
     <header class="app-header">
         <div class="theme-selector">
             <label class="visually-hidden" for="theme-selector">
@@ -513,5 +515,6 @@
         </div>
         <div class="editor-dialog__post-preview" id="full-preview-mockup"></div>
     </dialog>
+    </div></div>
 </body>
 </html>

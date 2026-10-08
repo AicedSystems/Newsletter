@@ -20,15 +20,16 @@
                 <img src="{{ url_for('static', filename='images/aicedbot-wave.png') }}" alt="">
                 <span>Aiced Bot</span>
             </div>
+            <button class="aiced-sidebar__collapse" id="aiced-sidebar-collapse" type="button" aria-label="Collapse navigation" aria-expanded="true">‹</button>
             <button class="aiced-sidebar__new" id="aiced-new-button" type="button">
                 <span aria-hidden="true">+</span> New
             </button>
             <nav class="aiced-sidebar__nav" aria-label="Primary navigation">
-                <a class="is-current" href="/aiced" aria-current="page">Aiced</a>
-                <a href="{{ url_for('dashboard') }}">Dashboard</a>
-                <a href="{{ url_for('new_campaign') }}">Campaigns</a>
-                <a href="{{ url_for('new_post') }}">Articles</a>
-                <a href="{{ url_for('subscribers') }}">Subscribers</a>
+                <a data-short="A" class="is-current" href="/aiced" aria-current="page">Aiced</a>
+                <a data-short="D" href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a data-short="C" href="{{ url_for('new_campaign') }}">Campaigns</a>
+                <a data-short="R" href="{{ url_for('new_post') }}">Articles</a>
+                <a data-short="S" href="{{ url_for('subscribers') }}">Subscribers</a>
             </nav>
             <nav class="aiced-sidebar__nav aiced-sidebar__nav--future" aria-label="Future navigation">
                 <span>Analytics <small>Coming soon</small></span>
@@ -75,17 +76,22 @@
                     <button class="aiced-button aiced-button--quiet" id="aiced-review-new-button" type="button">+ New Campaign</button>
                 </header>
                 <p class="aiced-status" id="aiced-review-status" aria-live="polite"></p>
+                <section class="aiced-campaign-ready-intro" id="aiced-campaign-ready-intro" hidden>
+                    <h2>Your campaign is ready to send</h2>
+                    <p>Review the rendered email and prepared recipients before authorizing delivery.</p>
+                </section>
 
                 <nav class="aiced-proposal-nav" id="aiced-proposal-nav" aria-label="Aiced proposal steps">
                     <button type="button" data-proposal-step="0"><span class="aiced-proposal-nav__number">01</span><span class="aiced-proposal-nav__label">Article</span></button>
                     <button type="button" data-proposal-step="1"><span class="aiced-proposal-nav__number">02</span><span class="aiced-proposal-nav__label">Call to Action</span></button>
                     <button type="button" data-proposal-step="2"><span class="aiced-proposal-nav__number">03</span><span class="aiced-proposal-nav__label">Campaign Details</span></button>
                     <button type="button" data-proposal-step="3"><span class="aiced-proposal-nav__number">04</span><span class="aiced-proposal-nav__label">Audience</span></button>
-                    <button type="button" data-proposal-step="4"><span class="aiced-proposal-nav__number">05</span><span class="aiced-proposal-nav__label">Email Preview</span></button>
+                    <button type="button" data-proposal-step="4" disabled><span class="aiced-proposal-nav__number">05</span><span class="aiced-proposal-nav__label">Email Preview</span></button>
+                    <button type="button" data-proposal-step="5" disabled><span class="aiced-proposal-nav__number">06</span><span class="aiced-proposal-nav__label">Review Campaign</span></button>
                 </nav>
 
                 <section class="aiced-proposal-viewport" aria-label="Aiced proposal review">
-                    <header class="aiced-proposal-viewport__header"><span>Aiced proposal</span><div><span id="aiced-proposal-position">01 / 05</span><button id="aiced-proposal-previous-top" type="button" aria-label="Previous proposal section">←</button><button id="aiced-proposal-next-top" type="button" aria-label="Next proposal section">→</button></div></header>
+                    <header class="aiced-proposal-viewport__header"><span>Aiced proposal</span><div><span id="aiced-proposal-position">01 / 04</span><button id="aiced-proposal-previous-top" type="button" aria-label="Previous proposal section">←</button><button id="aiced-proposal-next-top" type="button" aria-label="Next proposal section">→</button></div></header>
                     <div class="aiced-review__grid">
                     <article class="aiced-review-card aiced-review-card--article" id="aiced-card-article" data-proposal-panel="0">
                         <div class="aiced-card__heading"><span>Article</span><div><p id="aiced-article-category"></p><button class="aiced-card-edit" data-card-edit="article" type="button" disabled>Edit</button></div></div>
@@ -126,22 +132,63 @@
 
                     <article class="aiced-review-card" id="aiced-card-audience" data-proposal-panel="3">
                         <div class="aiced-card__heading"><span>Audience</span><button class="aiced-card-edit" data-card-edit="audience" type="button" disabled>Edit</button></div>
-                        <ul class="aiced-tag-list" id="aiced-audience-tags" aria-label="Recommended audience tags"></ul>
-                        <p id="aiced-audience-rationale"></p>
-                        <strong class="aiced-audience-count" id="aiced-audience-count"></strong>
+                        <div class="aiced-audience-overview">
+                            <div><strong class="aiced-audience-count" id="aiced-audience-count"></strong><span>eligible active subscribers</span></div>
+                            <div><span class="aiced-audience-overview__label">Selected tags</span><ul class="aiced-tag-list" id="aiced-audience-tags" aria-label="Recommended audience tags"></ul></div>
+                            <div><span class="aiced-audience-overview__label">Why Aiced chose this audience</span><p id="aiced-audience-rationale"></p></div>
+                        </div>
+                        <section class="aiced-audience-preview" aria-labelledby="aiced-audience-preview-title">
+                            <header><div><h2 id="aiced-audience-preview-title">Matching subscribers</h2><p id="aiced-audience-preview-message" aria-live="polite"></p></div><a href="{{ url_for('subscribers') }}">Manage subscribers ↗</a></header>
+                            <div class="aiced-audience-preview__table-wrap">
+                                <table id="aiced-audience-preview-table" hidden>
+                                    <thead><tr><th>Name</th><th>Email</th><th>Tags</th><th>Status</th></tr></thead>
+                                    <tbody id="aiced-audience-preview-list"></tbody>
+                                </table>
+                            </div>
+                        </section>
+                        <section class="aiced-draft-email-preview" aria-labelledby="aiced-draft-email-preview-title">
+                            <div class="aiced-card__heading"><span id="aiced-draft-email-preview-title">Email preview</span><p>Draft preview</p></div>
+                            <div class="aiced-email-placeholder">
+                                <p class="aiced-email-placeholder__brand">YOUR NEWSLETTER</p>
+                                <img class="aiced-email-placeholder__image" id="aiced-email-featured-image" alt="" hidden>
+                                <h2 id="aiced-email-headline"></h2>
+                                <p id="aiced-email-summary"></p>
+                                <span id="aiced-email-cta"></span>
+                            </div>
+                            <p class="aiced-card__note">The rendered email campaign preview becomes available after the article is published.</p>
+                        </section>
                     </article>
 
                     <article class="aiced-review-card aiced-review-card--email" data-proposal-panel="4">
                         <div class="aiced-card__heading"><span>Email preview</span><p>Preview</p></div>
-                        <div class="aiced-email-placeholder">
-                            <p class="aiced-email-placeholder__brand">YOUR NEWSLETTER</p>
-                            <img class="aiced-email-placeholder__image" id="aiced-email-featured-image" alt="" hidden>
-                            <h2 id="aiced-email-headline"></h2>
-                            <p id="aiced-email-summary"></p>
-                            <span id="aiced-email-cta"></span>
-                        </div>
-                        <p class="aiced-card__note">A full email preview becomes available after the reviewed article is saved and published.</p>
                         <iframe class="aiced-email-rendered-preview" id="aiced-email-rendered-preview" title="Published email preview" hidden></iframe>
+                    </article>
+
+                    <article class="aiced-review-card aiced-review-card--campaign-review" data-proposal-panel="5">
+                        <header class="aiced-campaign-review__status"><span><b aria-hidden="true">✓</b> Article published</span><span>Campaign review</span></header>
+                        <div class="aiced-campaign-review__intro">
+                            <h2>Ready to send your campaign?</h2>
+                            <p>Review the message and its recipients before authorizing delivery.</p>
+                        </div>
+                        <dl class="aiced-campaign-review__summary">
+                            <div><dt>Recipients</dt><dd id="aiced-campaign-review-count">0</dd></div>
+                            <div><dt>Article</dt><dd>Published</dd></div>
+                            <div class="aiced-campaign-review__subject"><dt>Subject</dt><dd id="aiced-campaign-review-subject"></dd></div>
+                        </dl>
+                        <section class="aiced-campaign-review__recipients" aria-labelledby="aiced-campaign-review-recipients-title">
+                            <header><h3 id="aiced-campaign-review-recipients-title">Recipients</h3><div><span>Prepared audience</span><button class="aiced-button aiced-button--quiet" id="aiced-remove-recipients" type="button" disabled>Remove selected</button></div></header>
+                            <ul id="aiced-campaign-review-recipient-list" aria-label="Prepared campaign recipients"></ul>
+                            <p id="aiced-campaign-review-empty">Prepare the campaign to freeze and review its recipients.</p>
+                        </section>
+                        <section class="aiced-send-confirmation" id="aiced-send-confirmation" aria-labelledby="aiced-send-confirmation-title" hidden>
+                            <h2 id="aiced-send-confirmation-title">Ready to send?</h2>
+                            <p id="aiced-send-confirmation-summary"></p>
+                            <p>One real email will be submitted to each prepared recipient.</p>
+                            <div>
+                                <button class="aiced-button aiced-button--quiet" id="aiced-send-cancel" type="button">Cancel</button>
+                                <button class="aiced-button aiced-button--primary" id="aiced-send-confirm" type="button">Send</button>
+                            </div>
+                        </section>
                     </article>
                 </div>
                     <footer class="aiced-proposal-viewport__footer"><button class="aiced-button aiced-button--quiet" id="aiced-proposal-previous" type="button">← Previous</button><button class="aiced-button aiced-button--primary" id="aiced-proposal-next" type="button">Next: Call to Action →</button></footer>
@@ -154,16 +201,6 @@
                     <a class="aiced-button aiced-button--quiet" id="aiced-live-article" target="_blank" rel="noopener" hidden>View Live Article ↗</a>
                     <p>Nothing has been saved, published, or sent.</p>
                 </footer>
-                <section class="aiced-send-confirmation" id="aiced-send-confirmation" aria-labelledby="aiced-send-confirmation-title" hidden>
-                    <h2 id="aiced-send-confirmation-title">Ready to send?</h2>
-                    <p id="aiced-send-confirmation-summary"></p>
-                    <ul id="aiced-send-recipient-list" aria-label="Prepared recipients"></ul>
-                    <p>This will submit one real email to each prepared recipient.</p>
-                    <div>
-                        <button class="aiced-button aiced-button--quiet" id="aiced-send-cancel" type="button">Cancel</button>
-                        <button class="aiced-button aiced-button--primary" id="aiced-send-confirm" type="button">Send</button>
-                    </div>
-                </section>
                 <section class="aiced-refine" aria-label="Ask Aiced to refine this proposal">
                     <div class="aiced-refine__header">
                         <label for="aiced-refine-request"><span aria-hidden="true">✧</span> Ask Aiced</label>

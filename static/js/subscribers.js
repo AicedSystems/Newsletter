@@ -8,6 +8,7 @@ const emptyState = document.querySelector("#subscriber-empty-state");
 const emptyStateTitle = document.querySelector("#subscriber-empty-state-title");
 const emptyStateDescription = document.querySelector("#subscriber-empty-state-description");
 const statusMessage = document.querySelector("#subscriber-status-message");
+const subscriberMatchCount = document.querySelector("#subscriber-match-count");
 const subscriberDialog = document.querySelector("#subscriber-dialog");
 const subscriberForm = document.querySelector("#subscriber-form");
 const dialogTitle = document.querySelector("#subscriber-dialog-title");
@@ -57,6 +58,15 @@ function displayName(subscriber) {
     return [subscriber.firstName, subscriber.lastName].filter(Boolean).join(" ") || "—";
 }
 
+function subscriberInitials(subscriber) {
+    const initials = [subscriber.firstName, subscriber.lastName]
+        .filter(Boolean)
+        .map((name) => name.trim().charAt(0))
+        .join("")
+        .slice(0, 2);
+    return initials ? initials.toUpperCase() : "•";
+}
+
 function formatDate(value) {
     if (!value) return "—";
     return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
@@ -98,6 +108,7 @@ function renderTagChoices() {
 
 function renderSubscribers(nextSubscribers) {
     subscribers = nextSubscribers;
+    subscriberMatchCount.textContent = `${subscribers.length} matching subscriber${subscribers.length === 1 ? "" : "s"}`;
     subscriberList.replaceChildren();
     subscriberTable.hidden = !subscribers.length;
     emptyState.hidden = subscribers.length > 0;
@@ -130,7 +141,7 @@ function renderSubscribers(nextSubscribers) {
             ? subscriber.tags.map((tag) => `<span class="subscriber-tag">${escapeHtml(tag.name)}</span>`).join("")
             : "—";
         row.innerHTML = `
-            <td>${escapeHtml(displayName(subscriber))}</td>
+            <td><span class="subscriber-name"><span class="subscriber-avatar" aria-hidden="true">${escapeHtml(subscriberInitials(subscriber))}</span>${escapeHtml(displayName(subscriber))}</span></td>
             <td>${escapeHtml(subscriber.email)}</td>
             <td>${tags}</td>
             <td><span class="subscriber-status subscriber-status--${escapeHtml(subscriber.status)}">${escapeHtml(statusLabels[subscriber.status])}</span></td>

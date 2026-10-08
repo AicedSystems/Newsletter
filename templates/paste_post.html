@@ -9,9 +9,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_shell.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/create_post.css') }}">
 </head>
-<body class="post-start-body">
+<body class="post-start-body admin-page">
+    <div class="admin-shell">{% set admin_nav = 'articles' %}{% include '_admin_sidebar.html' %}<div class="admin-content">
     <header class="app-header">
         <div class="theme-selector">
             <label class="visually-hidden" for="theme-selector">Select color theme</label>
@@ -71,5 +73,6 @@
 
     <script src="{{ url_for('static', filename='js/article_blocks.js') }}"></script>
     <script src="{{ url_for('static', filename='js/paste_post.js') }}"></script>
+    </div></div>
 </body>
 </html>

@@ -80,15 +80,55 @@ class AicedWorkspaceApprovalContractTests(unittest.TestCase):
         self.assertIn('function renderSendConfirmation(delivery)', WORKSPACE_SCRIPT)
         self.assertIn('sendConfirmButton.textContent = "Sending…"', WORKSPACE_SCRIPT)
 
-    def test_draft_workspace_has_five_browser_only_proposal_steps(self):
+    def test_draft_workspace_has_four_browser_only_proposal_steps_before_publish(self):
         for index, label in enumerate(
-            ("Article", "Call to Action", "Campaign Details", "Audience", "Email Preview")
+            ("Article", "Call to Action", "Campaign Details", "Audience")
         ):
             self.assertIn(f'data-proposal-step="{index}"', WORKSPACE_TEMPLATE)
             self.assertIn(label, WORKSPACE_TEMPLATE)
         self.assertIn("let activeProposalStep = 0", WORKSPACE_SCRIPT)
         self.assertIn("function setActiveProposalStep", WORKSPACE_SCRIPT)
-        self.assertIn("panel.hidden = draft && index !== activeProposalStep", WORKSPACE_SCRIPT)
+        self.assertIn('const lastAvailableStep = draft ? 3 : proposalSteps.length - 1;', WORKSPACE_SCRIPT)
+        self.assertIn('id="aiced-draft-email-preview-title"', WORKSPACE_TEMPLATE)
+
+    def test_published_workflow_uses_the_real_email_preview_in_campaign_review_layout(self):
+        self.assertIn('id="aiced-campaign-ready-intro"', WORKSPACE_TEMPLATE)
+        self.assertIn('id="aiced-email-rendered-preview"', WORKSPACE_TEMPLATE)
+        self.assertIn("campaignReadyIntro.hidden = false", WORKSPACE_SCRIPT)
+        self.assertIn("loadPublishedEmailPreview();", WORKSPACE_SCRIPT)
+
+    def test_published_workflow_exposes_email_preview_then_recipient_review_steps(self):
+        self.assertIn('data-proposal-step="4"', WORKSPACE_TEMPLATE)
+        self.assertIn('data-proposal-step="5"', WORKSPACE_TEMPLATE)
+        self.assertIn('>Email Preview<', WORKSPACE_TEMPLATE)
+        self.assertIn('>Review Campaign<', WORKSPACE_TEMPLATE)
+        self.assertIn('data-proposal-panel="5"', WORKSPACE_TEMPLATE)
+        self.assertIn('id="aiced-campaign-review-recipient-list"', WORKSPACE_TEMPLATE)
+        self.assertIn("function renderCampaignReview(delivery)", WORKSPACE_SCRIPT)
+        self.assertIn("function renderPreparedCampaignReview(delivery)", WORKSPACE_SCRIPT)
+        self.assertIn("setActiveProposalStep(5, { focus: true });", WORKSPACE_SCRIPT)
+
+    def test_aiced_navigation_is_collapsible_without_changing_workflow_behavior(self):
+        self.assertIn('id="aiced-sidebar-collapse"', WORKSPACE_TEMPLATE)
+        self.assertIn("aicedWorkspaceSidebarCollapsed", WORKSPACE_SCRIPT)
+        self.assertIn("sessionStorage", WORKSPACE_SCRIPT)
+        self.assertIn("is-sidebar-collapsed", WORKSPACE_SCRIPT)
+
+    def test_prepared_campaign_review_can_remove_selected_snapshot_recipients_before_send(self):
+        self.assertIn('id="aiced-remove-recipients"', WORKSPACE_TEMPLATE)
+        self.assertIn('id="aiced-campaign-review-recipient-list"', WORKSPACE_TEMPLATE)
+        self.assertIn("function removeSelectedCampaignRecipients()", WORKSPACE_SCRIPT)
+        self.assertIn("/campaign/recipients/remove", WORKSPACE_SCRIPT)
+        self.assertIn('body: JSON.stringify({ recipientIds: [...selectedCampaignRecipientIds] })', WORKSPACE_SCRIPT)
+
+    def test_audience_step_has_a_read_only_matching_subscriber_preview(self):
+        self.assertIn('id="aiced-audience-preview-table"', WORKSPACE_TEMPLATE)
+        self.assertIn('id="aiced-audience-preview-list"', WORKSPACE_TEMPLATE)
+        self.assertIn('href="{{ url_for(\'subscribers\') }}"', WORKSPACE_TEMPLATE)
+        self.assertIn("function loadAudiencePreview()", WORKSPACE_SCRIPT)
+        self.assertIn("/audience-preview`", WORKSPACE_SCRIPT)
+        self.assertGreaterEqual(WORKSPACE_SCRIPT.count("loadAudiencePreview();"), 3)
+        self.assertNotIn('type = "checkbox"', WORKSPACE_SCRIPT[WORKSPACE_SCRIPT.index("function renderAudiencePreview"):WORKSPACE_SCRIPT.index("function renderSendConfirmation")])
 
     def test_closing_the_article_hides_its_browser_only_change_review(self):
         self.assertIn('const articleExpandedLayout = document.querySelector("#aiced-article-expanded-layout")', WORKSPACE_SCRIPT)
@@ -139,6 +179,12 @@ class AicedWorkspaceApprovalContractTests(unittest.TestCase):
         self.assertIn('card.querySelector("#aiced-cta-body").textContent.trim()', WORKSPACE_SCRIPT)
         self.assertIn('card.querySelector("#aiced-cta-button-label").textContent.trim()', WORKSPACE_SCRIPT)
         self.assertIn('if (kind === "cta") { beginInlineCtaEdit(card); return; }', WORKSPACE_SCRIPT)
+
+    def test_rerendering_clears_temporary_cta_and_card_editing_controls(self):
+        self.assertIn("function clearManualEditingUi()", WORKSPACE_SCRIPT)
+        self.assertIn('".aiced-card-edit-form, .aiced-inline-edit-cancel, .aiced-inline-edit-error"', WORKSPACE_SCRIPT)
+        self.assertIn("delete card.dataset.inlineEditing", WORKSPACE_SCRIPT)
+        self.assertIn("clearManualEditingUi();", WORKSPACE_SCRIPT)
 
     def test_ai_revision_review_is_browser_only_until_each_change_is_approved(self):
         self.assertIn("let pendingReviewEntries = []", WORKSPACE_SCRIPT)

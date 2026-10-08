@@ -6,9 +6,11 @@
     <meta name="theme-color" content="#050b14">
     <title>Archived articles | Rise</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_shell.css') }}">
     <script src="{{ url_for('static', filename='js/archived_posts.js') }}" defer></script>
 </head>
-<body>
+<body class="admin-page">
+    <div class="admin-shell">{% set admin_nav = 'articles' %}{% include '_admin_sidebar.html' %}<div class="admin-content">
     <main class="archive-page" id="main-content">
         <a class="archive-page__back" href="{{ url_for('dashboard') }}">← Back to dashboard</a>
         <header class="archive-page__header">
@@ -21,5 +23,6 @@
         <p class="archive-page__status" id="archive-status" aria-live="polite">Loading archived articles…</p>
         <section class="archive-page__list" id="archive-list" aria-label="Archived articles"></section>
     </main>
+    </div></div>
 </body>
 </html>
