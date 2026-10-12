@@ -538,17 +538,56 @@ function renderPendingRevisionReview() {
         }
         const actions = document.createElement("div"); actions.className = "aiced-change-review__actions";
         if (entry.status === "pending") {
-            const approve = document.createElement("button"); approve.type = "button"; approve.textContent = "Approve"; approve.className = "is-approve"; approve.addEventListener("click", () => applyPendingReviewEntry(entry));
-            const decline = document.createElement("button"); decline.type = "button"; decline.textContent = "Decline"; decline.className = "is-decline"; decline.addEventListener("click", () => { entry.status = "declined"; renderPendingRevisionReview(); });
+            const approve = document.createElement("button"); approve.type = "button"; approve.textContent = "Accept change"; approve.className = "is-approve"; approve.addEventListener("click", () => applyPendingReviewEntry(entry));
+            const decline = document.createElement("button"); decline.type = "button"; decline.textContent = "Reject change"; decline.className = "is-decline"; decline.addEventListener("click", () => { entry.status = "declined"; syncProposalApprovalState(); syncRevisionComposer(); renderPendingRevisionReview(); setStatus(reviewStatus, "Change rejected. Your proposal was not overwritten."); });
             actions.append(approve, decline);
         } else if (entry.status === "approved") {
             const revert = document.createElement("button"); revert.type = "button"; revert.textContent = "Revert"; revert.addEventListener("click", () => revertPendingReviewEntry(entry)); actions.append(revert);
         } else if (entry.status === "declined") {
-            const reconsider = document.createElement("button"); reconsider.type = "button"; reconsider.textContent = "Reconsider"; reconsider.addEventListener("click", () => { entry.status = "pending"; renderPendingRevisionReview(); }); actions.append(reconsider);
+            const reconsider = document.createElement("button"); reconsider.type = "button"; reconsider.textContent = "Reconsider"; reconsider.addEventListener("click", () => { entry.status = "pending"; syncProposalApprovalState(); syncRevisionComposer(); renderPendingRevisionReview(); }); actions.append(reconsider);
         }
         card.append(actions); panel.append(card);
     });
     reviewSlot.append(panel);
+}
+
+function hasPendingReviewEntries() {
+    return pendingReviewEntries.some((entry) => entry.status === "pending");
+}
+
+function syncProposalApprovalState() {
+    if (approvalState !== "ready") return;
+    const hasPendingChanges = hasPendingReviewEntries();
+    approveButton.disabled = hasPendingChanges;
+    approveButton.textContent = hasPendingChanges ? "Review pending changes" : "Approve Article →";
+}
+
+function syncRevisionComposer() {
+    setRevisionComposerEnabled(
+        ["ready", "saved"].includes(approvalState) && !hasPendingReviewEntries()
+    );
+}
+
+function applyReviewPayloadLocally(payload) {
+    if (!reviewedProposal || !payload || typeof payload !== "object") return;
+    if (payload.article) Object.assign(reviewedProposal.article, payload.article);
+    if (payload.cta) {
+        const blocks = reviewedProposal.article.contentBlocks || [];
+        const ctaIndex = blocks.findIndex((block) => block.type === "cta");
+        if (ctaIndex >= 0) blocks[ctaIndex] = { ...blocks[ctaIndex], ...payload.cta };
+    }
+    if (payload.campaign) Object.assign(reviewedProposal.campaign, payload.campaign);
+    if (payload.audience) Object.assign(reviewedProposal.audience, payload.audience);
+}
+
+function renderLocalRevisionResult(status) {
+    renderProposal(reviewedProposal, { resetStep: false });
+    setActiveProposalStep(0);
+    setArticleExpanded(true);
+    syncProposalApprovalState();
+    syncRevisionComposer();
+    renderPendingRevisionReview();
+    setStatus(reviewStatus, status);
 }
 
 async function savePendingReviewEntry(entry, payload, successStatus) {
@@ -564,11 +603,24 @@ async function savePendingReviewEntry(entry, payload, successStatus) {
 }
 
 async function applyPendingReviewEntry(entry) {
+    if (!savedWorkflow) {
+        applyReviewPayloadLocally(entry.payload);
+        entry.status = "approved";
+        renderLocalRevisionResult("Accepted change applied to this proposal.");
+        return;
+    }
     try { await savePendingReviewEntry(entry, entry.payload, "approved"); }
     catch (error) { setStatus(reviewStatus, error.message || "Aiced Bot could not save that change.", true); }
 }
 
 async function revertPendingReviewEntry(entry) {
+    if (!savedWorkflow) {
+        const section = entry.section === "Call to action" ? "cta" : entry.section.toLowerCase();
+        applyReviewPayloadLocally({ [section]: { [entry.field]: entry.original } });
+        entry.status = "reverted";
+        renderLocalRevisionResult("Accepted change reverted from this proposal.");
+        return;
+    }
     try { await savePendingReviewEntry(entry, { [entry.section === "Call to action" ? "cta" : entry.section.toLowerCase()]: { [entry.field]: entry.original } }, "reverted"); }
     catch (error) { setStatus(reviewStatus, error.message || "Aiced Bot could not revert that change.", true); }
 }
@@ -675,9 +727,9 @@ function renderProposal(proposal, { resetStep = true } = {}) {
     }
     intro.hidden = true;
     review.hidden = false;
-    setStatus(reviewStatus, "Proposal ready to review.");
+    setStatus(reviewStatus, "Proposal awaiting approval. You can ask Aiced for revisions first.");
     approveButton.disabled = false;
-    approveButton.textContent = "Approve & Continue →";
+    approveButton.textContent = "Approve Article →";
     approveButton.hidden = false;
     publishButton.hidden = true;
     sendCampaignButton.hidden = true;
@@ -686,6 +738,8 @@ function renderProposal(proposal, { resetStep = true } = {}) {
     setManualEditingEnabled(false);
     if (resetStep) activeProposalStep = 0;
     setActiveProposalStep(activeProposalStep);
+    syncProposalApprovalState();
+    syncRevisionComposer();
     requestAnimationFrame(syncRefineComposerExpansion);
     review.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -849,6 +903,11 @@ function beginManualEdit(kind) {
 
 async function approveReviewedProposal() {
     if (approvalState !== "ready" || !reviewedProposal) return false;
+    if (hasPendingReviewEntries()) {
+        setStatus(reviewStatus, "Accept or reject the pending Aiced changes before approving the article.", true);
+        syncProposalApprovalState();
+        return false;
+    }
 
     approvalState = "saving";
     approveButton.disabled = true;
@@ -872,8 +931,7 @@ async function approveReviewedProposal() {
         return true;
     } catch (error) {
         approvalState = "ready";
-        approveButton.disabled = false;
-        approveButton.textContent = "Approve & Continue →";
+        syncProposalApprovalState();
         setStatus(reviewStatus, error.message || "Aiced Bot could not save this work. Please try again.", true);
         return false;
     }
@@ -881,7 +939,7 @@ async function approveReviewedProposal() {
 
 async function submitRevision() {
     if (isRevising || !reviewedProposal || !["ready", "saved"].includes(approvalState)) return;
-    if (pendingReviewEntries.some((entry) => entry.status === "pending")) {
+    if (hasPendingReviewEntries()) {
         setStatus(reviewStatus, "Review or decline the current Aiced changes before requesting another revision.", true);
         return;
     }
@@ -895,39 +953,43 @@ async function submitRevision() {
     refineRequest.disabled = true;
     refineSendButton.disabled = true;
     refineSendButton.textContent = "…";
-    if (approvalState === "ready") {
-        setStatus(reviewStatus, "Saving your reviewed draft before Aiced updates it…");
-        const saved = await approveReviewedProposal();
-        if (!saved) {
-            isRevising = false;
-            setRevisionComposerEnabled(approvalState === "ready" || approvalState === "saved");
-            refineSendButton.textContent = "↑";
-            return;
-        }
-    }
-    if (approvalState !== "saved" || !savedWorkflow) {
-        isRevising = false;
-        setRevisionComposerEnabled(false);
-        refineSendButton.textContent = "↑";
-        return;
-    }
     setStatus(reviewStatus, "Aiced Bot is preparing changes for your review…");
     try {
-        const response = await fetch(`/api/aiced/workflows/${encodeURIComponent(savedWorkflow.workflowToken)}/revisions`, {
+        const isUnapprovedProposal = approvalState === "ready" && !savedWorkflow;
+        const response = await fetch(
+            isUnapprovedProposal
+                ? "/api/aiced/marketing-package/revisions"
+                : `/api/aiced/workflows/${encodeURIComponent(savedWorkflow.workflowToken)}/revisions`,
+            {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ instruction, preview: true }),
+            body: JSON.stringify(
+                isUnapprovedProposal
+                    ? { instruction, proposal: reviewedProposal }
+                    : { instruction, preview: true }
+            ),
         });
         const proposal = await response.json().catch(() => ({}));
-        if (!response.ok || !proposal.workflow || !proposal.article || !proposal.campaign || !proposal.audience || !proposal.revision) {
+        if (!response.ok || !proposal.article || !proposal.campaign || !proposal.audience || !proposal.revision) {
             const reference = proposal.referenceId ? ` Reference: ${proposal.referenceId}` : "";
             throw new Error(`${proposal.message || "Aiced Bot could not complete that revision."}${reference}`);
         }
-        const workflowToken = savedWorkflow.workflowToken;
-        renderProposal(proposal, { resetStep: false });
         pendingReviewEntries = makePendingReviewEntries(proposal.revision, proposal);
         pendingReviewHeading = reviewHeadingForInstruction(instruction);
         pendingReviewSummary = proposal.summary || "";
+        if (!pendingReviewEntries.length) throw new Error("Aiced Bot did not produce a visible change. Try a more specific request.");
+        if (isUnapprovedProposal) {
+            pendingReviewEntries.forEach((entry) => { entry.status = "pending"; });
+            setActiveProposalStep(0);
+            setArticleExpanded(true);
+            syncProposalApprovalState();
+            renderPendingRevisionReview();
+            refineRequest.value = "";
+            setStatus(reviewStatus, "Revision ready. Accept or reject each proposed change before approving the article.");
+            return;
+        }
+        const workflowToken = savedWorkflow.workflowToken;
+        renderProposal(proposal, { resetStep: false });
         setActiveProposalStep(0);
         setArticleExpanded(true);
         renderPendingRevisionReview();
@@ -938,7 +1000,7 @@ async function submitRevision() {
     } finally {
         isRevising = false;
         refineSendButton.textContent = "↑";
-        setRevisionComposerEnabled(approvalState === "saved");
+        syncRevisionComposer();
     }
 }
 

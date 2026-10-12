@@ -58,13 +58,26 @@ class AicedWorkspaceApprovalContractTests(unittest.TestCase):
     def test_new_clears_workflow_from_the_browser_url(self):
         self.assertIn('window.history.replaceState({}, "", "/aiced")', WORKSPACE_SCRIPT)
 
-    def test_revision_composer_saves_a_ready_proposal_before_sending_the_instruction(self):
+    def test_revision_composer_revises_an_unapproved_proposal_without_saving_a_draft(self):
         self.assertIn('if (isRevising || !reviewedProposal || !["ready", "saved"].includes(approvalState)) return;', WORKSPACE_SCRIPT)
-        self.assertIn('const saved = await approveReviewedProposal();', WORKSPACE_SCRIPT)
-        self.assertIn('if (approvalState !== "saved" || !savedWorkflow)', WORKSPACE_SCRIPT)
-        self.assertIn("body: JSON.stringify({ instruction, preview: true })", WORKSPACE_SCRIPT)
-        self.assertIn("/revisions`, {", WORKSPACE_SCRIPT)
-        self.assertIn("setRevisionComposerEnabled(true)", WORKSPACE_SCRIPT)
+        self.assertIn('const isUnapprovedProposal = approvalState === "ready" && !savedWorkflow;', WORKSPACE_SCRIPT)
+        self.assertIn('"/api/aiced/marketing-package/revisions"', WORKSPACE_SCRIPT)
+        self.assertIn('? { instruction, proposal: reviewedProposal }', WORKSPACE_SCRIPT)
+        self.assertIn(": { instruction, preview: true }", WORKSPACE_SCRIPT)
+        self.assertIn("function syncRevisionComposer()", WORKSPACE_SCRIPT)
+
+    def test_pending_preapproval_revision_blocks_final_article_approval(self):
+        self.assertIn("function hasPendingReviewEntries()", WORKSPACE_SCRIPT)
+        self.assertIn("function syncProposalApprovalState()", WORKSPACE_SCRIPT)
+        self.assertIn("if (hasPendingReviewEntries())", WORKSPACE_SCRIPT)
+        self.assertIn('"Accept change"', WORKSPACE_SCRIPT)
+        self.assertIn('"Reject change"', WORKSPACE_SCRIPT)
+
+    def test_preapproval_review_entries_apply_or_reject_without_a_workflow_patch(self):
+        self.assertIn("function applyReviewPayloadLocally(payload)", WORKSPACE_SCRIPT)
+        self.assertIn("if (!savedWorkflow)", WORKSPACE_SCRIPT)
+        self.assertIn('"Accepted change applied to this proposal."', WORKSPACE_SCRIPT)
+        self.assertIn('"Change rejected. Your proposal was not overwritten."', WORKSPACE_SCRIPT)
 
     def test_email_preview_uses_the_canonical_featured_image_when_present(self):
         self.assertIn('id="aiced-email-featured-image"', WORKSPACE_TEMPLATE)
@@ -192,7 +205,7 @@ class AicedWorkspaceApprovalContractTests(unittest.TestCase):
         self.assertIn("function renderPendingRevisionReview()", WORKSPACE_SCRIPT)
         self.assertIn("function applyPendingReviewEntry(entry)", WORKSPACE_SCRIPT)
         self.assertIn("function revertPendingReviewEntry(entry)", WORKSPACE_SCRIPT)
-        self.assertIn('body: JSON.stringify({ instruction, preview: true })', WORKSPACE_SCRIPT)
+        self.assertIn(": { instruction, preview: true }", WORKSPACE_SCRIPT)
 
     def test_revision_review_uses_an_adjacent_article_column_with_side_by_side_collapsible_comparisons(self):
         self.assertIn('const reviewSlot = document.querySelector(".aiced-article-change-review-slot")', WORKSPACE_SCRIPT)

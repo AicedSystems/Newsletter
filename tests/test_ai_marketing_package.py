@@ -150,6 +150,58 @@ class AiMarketingPackageTests(unittest.TestCase):
         response = self.client.post("/api/aiced/article-campaign-handoff", json=package())
         self.assertEqual(response.status_code, 401)
 
+    def test_unapproved_revision_requires_authentication(self):
+        response = self.client.post(
+            "/api/aiced/marketing-package/revisions",
+            json={"instruction": "Make the title clearer.", "proposal": package()},
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_unapproved_revision_reuses_validation_without_creating_a_draft(self):
+        revision = revision_template()
+        revision["article"]["title"] = "A Clear First Home Planning Guide"
+        validated_revision = {
+            "summary": revision["summary"],
+            "article": {"title": revision["article"]["title"]},
+            "cta": None,
+            "campaign": None,
+            "audience": None,
+        }
+        with patch.object(app_module.db.session, "execute", return_value=ScalarResult(tags())), patch.object(
+            app_module, "request_ai_workflow_revision", return_value=(validated_revision, None, 200, None)
+        ) as request_revision, patch.object(
+            app_module, "resolve_active_aiced_audience", return_value=[]
+        ), patch.object(app_module.db.session, "add") as add, patch.object(
+            app_module.db.session, "commit"
+        ) as commit:
+            response = self.client.post(
+                "/api/aiced/marketing-package/revisions",
+                json={"instruction": "Make the title clearer.", "proposal": package()},
+                headers=auth_header(),
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["revision"]["article"], {"title": revision["article"]["title"]})
+        self.assertEqual(response.get_json()["article"]["title"], package()["article"]["title"])
+        self.assertEqual(request_revision.call_args.args[0], "Make the title clearer.")
+        add.assert_not_called()
+        commit.assert_not_called()
+
+    def test_unapproved_revision_rejects_an_invalid_current_proposal_before_ai(self):
+        invalid_package = package()
+        invalid_package["audience"]["tags"] = ["Unknown"]
+        with patch.object(app_module.db.session, "execute", return_value=ScalarResult(tags())), patch.object(
+            app_module, "request_ai_workflow_revision"
+        ) as request_revision:
+            response = self.client.post(
+                "/api/aiced/marketing-package/revisions",
+                json={"instruction": "Make it warmer.", "proposal": invalid_package},
+                headers=auth_header(),
+            )
+
+        self.assertEqual(response.status_code, 400)
+        request_revision.assert_not_called()
+
     def test_publish_workflow_authentication_is_required(self):
         response = self.client.post(f"/api/aiced/workflows/{'P' * 43}/publish")
         self.assertEqual(response.status_code, 401)

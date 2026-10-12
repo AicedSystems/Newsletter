@@ -2249,6 +2249,84 @@ def create_aiced_marketing_package():
     )
 
 
+@app.post("/api/aiced/marketing-package/revisions")
+@require_editor_auth
+def revise_unapproved_aiced_marketing_package():
+    """Preview one validated revision without persisting a draft workflow."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or set(data) != {"instruction", "proposal"}:
+        return jsonify({"message": "Provide an instruction and the current proposal."}), 400
+
+    instruction = data.get("instruction")
+    if (
+        not isinstance(instruction, str)
+        or not instruction.strip()
+        or len(instruction.strip()) > MAXIMUM_AI_CUSTOM_INSTRUCTION_CHARACTERS
+    ):
+        return jsonify({"message": "instruction must be between 1 and 500 characters."}), 400
+
+    current_tags = list(
+        db.session.execute(db.select(SubscriberTag).order_by(SubscriberTag.name)).scalars()
+    )
+    tags_by_normalized_name = {
+        tag.normalized_name: tag for tag in current_tags
+    }
+    marketing_package, package_error = validate_ai_marketing_package(
+        data.get("proposal"), tags_by_normalized_name
+    )
+    if package_error:
+        return jsonify({"message": package_error}), 400
+
+    article = marketing_package["article"]
+    workflow_context = {
+        "instruction": instruction.strip(),
+        "article": article,
+        "campaign": marketing_package["campaign"],
+        "audience": {
+            "tags": [tag.name for tag in marketing_package["audience"]["tags"]],
+            "rationale": marketing_package["audience"]["rationale"],
+        },
+        "availableAudienceTags": [tag.name for tag in current_tags],
+    }
+    revision, error, status_code, reference_id = request_ai_workflow_revision(
+        instruction.strip(), workflow_context, article, tags_by_normalized_name
+    )
+    if error:
+        response_body = {"message": error}
+        if reference_id:
+            response_body["referenceId"] = reference_id
+        return jsonify(response_body), status_code
+
+    return jsonify(
+        {
+            "article": article,
+            "campaign": marketing_package["campaign"],
+            "audience": {
+                "tags": [tag.name for tag in marketing_package["audience"]["tags"]],
+                "rationale": marketing_package["audience"]["rationale"],
+                "eligibleRecipientCount": len(
+                    resolve_active_aiced_audience(marketing_package["audience"]["tags"])
+                ),
+            },
+            "availableAudienceTags": [tag.name for tag in current_tags],
+            "summary": revision["summary"],
+            "revision": {
+                "article": revision["article"],
+                "cta": revision["cta"],
+                "campaign": revision["campaign"],
+                "audience": (
+                    {
+                        **revision["audience"],
+                        "tags": [tag.name for tag in revision["audience"].get("tags", [])],
+                    }
+                    if revision["audience"]
+                    else None
+                ),
+            },
+        }
+    )
+
+
 @app.post("/api/aiced/article-campaign-handoff")
 @require_editor_auth
 def create_aiced_article_campaign_handoff():
