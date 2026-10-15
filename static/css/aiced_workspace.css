@@ -59,15 +59,113 @@
 .aiced-card__heading > div { display: flex; align-items: center; gap: 8px; }
 .aiced-card-edit, .aiced-article-full-editor { color: var(--color-gold); border: 0; background: transparent; font: inherit; font-size: 12px; font-weight: 700; text-decoration: none; cursor: pointer; }
 .aiced-card-edit:disabled { cursor: not-allowed; opacity: .45; }
+.aiced-locked-control { position: relative; display: inline-flex; }
+.aiced-locked-control.is-locked::after,
+.aiced-featured-image__actions.is-locked::after {
+    position: absolute;
+    z-index: 5;
+    bottom: calc(100% + 7px);
+    left: 50%;
+    width: max-content;
+    max-width: min(260px, 75vw);
+    padding: 7px 9px;
+    color: #fff;
+    border-radius: 6px;
+    background: #252825;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .14);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.3;
+    text-align: center;
+    transform: translateX(-50%);
+    content: "Click Save & Edit Campaign first to unlock editing.";
+}
+.aiced-locked-control.is-locked::after { display: none; }
+.aiced-locked-control.is-locked:hover::after,
+.aiced-locked-control.is-locked:focus-within::after { display: block; }
+.aiced-featured-image__actions { position: relative; }
+.aiced-featured-image__actions.is-locked::after { display: none; left: 50%; }
+.aiced-featured-image__actions.is-locked:hover::after { display: block; }
 .aiced-article-full-editor { display: inline-block; margin: 15px 0 0 14px; }
 .aiced-card-edit-form { display: grid; gap: 12px; padding-top: 16px; margin-top: 16px; border-top: 1px solid var(--color-border); }
+.aiced-cta-edit-form,
+.aiced-campaign-edit-form {
+    gap: 16px;
+    padding: 20px;
+    margin-top: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: #fafbfa;
+}
+
+/* The CTA preview is intentionally narrow; its editing form needs room to work. */
+.aiced-review--draft .aiced-review-card--cta:has(.aiced-cta-edit-form) {
+    max-width: none;
+    justify-items: stretch;
+    text-align: left;
+}
+
+.aiced-review--draft .aiced-review-card--cta .aiced-cta-edit-form {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+    justify-self: stretch;
+}
+
+.aiced-review--draft #aiced-card-campaign:has(.aiced-campaign-edit-form) {
+    max-width: none;
+}
+
+.aiced-review--draft #aiced-card-campaign .aiced-campaign-edit-form {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+}
+
+/* A campaign edit form replaces its summary; it is never a second preview. */
+.aiced-review--draft #aiced-card-campaign:has(.aiced-campaign-edit-form) [data-card-edit="campaign"] {
+    visibility: hidden;
+}
+
+.aiced-review--draft .aiced-cta-edit-form .aiced-edit-field {
+    font-size: 13px;
+}
+
+.aiced-review--draft .aiced-cta-edit-form .aiced-edit-field input,
+.aiced-review--draft .aiced-cta-edit-form .aiced-edit-field textarea {
+    font-size: 16px;
+    line-height: 1.45;
+}
+
+.aiced-review--draft .aiced-campaign-edit-form .aiced-edit-field {
+    font-size: 13px;
+}
+
+.aiced-review--draft .aiced-campaign-edit-form .aiced-edit-field input,
+.aiced-review--draft .aiced-campaign-edit-form .aiced-edit-field textarea {
+    font-size: 16px;
+    line-height: 1.45;
+}
+
+.aiced-review--draft .aiced-review-card--cta .aiced-cta-preview {
+    width: 100%;
+    text-align: center;
+}
+
+.aiced-review--draft .aiced-review-card--cta #aiced-cta-headline {
+    margin-right: auto;
+    margin-left: auto;
+}
 .aiced-edit-field { display: grid; gap: 6px; color: var(--color-text); font-size: 12px; font-weight: 700; }
-.aiced-edit-field input, .aiced-edit-field textarea { width: 100%; padding: 9px 10px; box-sizing: border-box; color: var(--color-text); border: 1px solid var(--color-border-strong); border-radius: 8px; background: #fff; font: inherit; font-weight: 400; }
-.aiced-edit-field textarea { min-height: 66px; resize: vertical; }
+.aiced-edit-field input, .aiced-edit-field textarea { width: 100%; min-height: 42px; padding: 10px 11px; box-sizing: border-box; color: var(--color-text); border: 1px solid var(--color-border-strong); border-radius: 8px; background: #fff; font: inherit; font-weight: 400; }
+.aiced-edit-field textarea { min-height: 92px; resize: vertical; }
 .aiced-edit-tags { display: flex; flex-wrap: wrap; gap: 8px; }
 .aiced-edit-tags label { display: inline-flex; align-items: center; gap: 5px; padding: 6px 9px; border: 1px solid var(--color-border); border-radius: 999px; font-size: 12px; }
 .aiced-edit-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.aiced-cta-edit-form .aiced-edit-actions,
+.aiced-campaign-edit-form .aiced-edit-actions { justify-content: flex-end; padding-top: 4px; border-top: 1px solid var(--color-border); }
 .aiced-edit-error { min-height: 18px; margin: 0; color: #b33d4a !important; font-size: 12px; }
+.aiced-edit-helper { margin: 0; color: var(--color-text-muted); font-size: 13px; line-height: 1.45; }
 .aiced-review-card h2 { margin: 0 0 8px; font-size: 22px; line-height: 1.25; }
 .aiced-review-card p { color: var(--color-text-muted); line-height: 1.55; }
 .aiced-review-card__excerpt { margin: 0 0 16px; font-size: 15px; }
@@ -92,6 +190,7 @@
 .aiced-cta-button-preview { display: inline-block; padding: 9px 12px; margin-top: 4px; color: var(--color-on-accent, #fff); border-radius: 8px; background: var(--accent-gradient); font-size: 13px; font-weight: 700; }
 .aiced-card__meta { display: flex; gap: 7px; margin: 15px 0 0; font-size: 12px; text-transform: capitalize; }
 .aiced-details { display: grid; gap: 15px; margin: 0; }
+.aiced-details[hidden] { display: none; }
 .aiced-details div { display: grid; gap: 4px; }
 .aiced-details dt { color: var(--color-text-muted); font-size: 12px; }
 .aiced-details dd { margin: 0; line-height: 1.45; }
@@ -617,6 +716,56 @@ html.aiced-workflow-restoring .aiced-workspace::before {
 .aiced-review__header h1 { margin: 0; }
 .aiced-review__header .aiced-review__meta { margin: 0; }
 
+.aiced-draft-onboarding {
+    display: grid;
+    gap: 14px;
+    margin: 0 0 16px;
+    padding: 18px 20px;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.aiced-draft-onboarding[hidden] { display: none; }
+
+.aiced-draft-onboarding__heading {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.aiced-draft-onboarding__icon {
+    padding-top: 1px;
+    color: #4f6254;
+    font-size: 24px;
+    line-height: 1;
+}
+
+.aiced-draft-onboarding h2 {
+    margin: 0 0 5px;
+    font-size: 20px;
+    line-height: 1.2;
+}
+
+.aiced-draft-onboarding p { margin: 0; color: var(--color-text-muted); }
+
+.aiced-draft-onboarding .aiced-button {
+    justify-content: center;
+    width: 100%;
+    min-height: 42px;
+}
+
+.aiced-draft-onboarding__reassurance { font-size: 13px; }
+.aiced-draft-onboarding__locked-note { color: #59605b !important; font-size: 13px; font-weight: 600; }
+
+.aiced-refine textarea:disabled,
+.aiced-refine button:disabled,
+.aiced-featured-image__actions button:disabled {
+    cursor: not-allowed;
+    opacity: .45;
+}
+
+
 .aiced-proposal-nav { padding-top: 16px; padding-bottom: 36px; }
 .aiced-proposal-nav button { min-height: 70px; gap: 10px; padding-right: 20px; }
 .aiced-proposal-nav button::after { top: 53px; }
@@ -705,6 +854,8 @@ html.aiced-workflow-restoring .aiced-workspace::before {
 .aiced-article-expanded-layout { display: grid; width: min(100%, 780px); }
 .aiced-article-expanded-layout.has-change-review { grid-template-columns: minmax(0, 1fr) minmax(280px, .82fr); gap: 28px; width: min(100%, 1120px); }
 .aiced-article-expanded-layout[hidden] { display: none; }
+.aiced-article-expanded-layout.has-change-review > .aiced-article-content { grid-column: 1; }
+.aiced-article-expanded-layout.has-change-review > .aiced-change-review { display: grid; grid-column: 2; min-width: 0; }
 .aiced-review--draft .aiced-article-content { width: 100%; margin: 0; }
 .aiced-article-content__source { display: grid; gap: 11px; min-width: 0; }
 
@@ -746,9 +897,84 @@ html.aiced-workflow-restoring .aiced-workspace::before {
 .aiced-change-review__actions .is-approve { color: #195d32; border-color: #99c9a7; background: #e7f6eb; }
 .aiced-change-review__actions .is-decline { color: #9c3030; border-color: #e0aaaa; background: #fff5f5; }
 
+/* Pending Aiced revisions reuse the expanded article preview as a real diff. */
+.aiced-article-expanded-layout.has-change-review {
+    align-items: start;
+    gap: 16px;
+    width: min(100%, 1240px);
+}
+
+.aiced-article-expanded-layout.has-change-review .aiced-article-content,
+.aiced-change-review--side-by-side {
+    min-width: 0;
+    padding: 18px;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.aiced-change-review--side-by-side {
+    display: grid;
+    align-content: start;
+    gap: 16px;
+    margin: 0;
+    border-top: 1px solid var(--color-border);
+}
+
+.aiced-change-review--side-by-side .aiced-change-review__heading {
+    position: relative;
+    padding: 0 0 14px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.aiced-change-review__pending {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 4px 8px;
+    color: #b65316;
+    border-radius: 999px;
+    background: #fff0e6;
+    font-size: 10px;
+    font-weight: 650;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.aiced-revision-article { display: grid; gap: 14px; }
+.aiced-revision-article > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--color-border); }
+.aiced-revision-article > header h3 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -.02em; }
+.aiced-revision-article > header span { padding: 4px 8px; border-radius: 999px; background: #f0f1f0; color: #59605b; font-size: 10px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+.aiced-revision-article--revised > header span { color: #18743a; background: #e4f5e9; }
+.aiced-revision-article__title { margin: 0; font-size: 22px; line-height: 1.15; letter-spacing: -.03em; }
+.aiced-revision-article__excerpt { margin: -5px 0 0; color: var(--color-text-muted); font-size: 14px; line-height: 1.5; }
+.aiced-revision-article__content { display: grid; gap: 10px; }
+.aiced-revision-article__unchanged-note { margin: 0; color: var(--color-text-muted); font-size: 13px; }
+.aiced-revision-article__block { margin: 0; padding: 10px 11px; border-radius: 7px; color: var(--color-text); font-size: 14px; line-height: 1.55; }
+.aiced-revision-article__block:not(.is-block-change) { background: #fafbfa; }
+.aiced-revision-article--revised .aiced-revision-article__block.is-block-change { background: #edf8f0; }
+.aiced-revision-article--original .aiced-revision-article__block.is-block-change { color: #754040; background: #fff0f0; text-decoration: line-through; text-decoration-thickness: 1px; }
+.aiced-word-diff { padding: 1px 0; border-radius: 2px; }
+.aiced-word-diff--removed { color: #754040; background: #fff0f0; text-decoration: line-through; text-decoration-thickness: 1px; }
+.aiced-word-diff--added { color: #1c6835; background: #e6f5ea; }
+.aiced-revision-article__block:is(h4) { font-size: 16px; line-height: 1.35; }
+.aiced-revision-article__block:is(blockquote) { border-left: 3px solid var(--color-border-strong); }
+.aiced-change-review--side-by-side .aiced-change-review__actions { justify-content: flex-end; padding-top: 2px; }
+.aiced-change-review--side-by-side .aiced-change-review__actions button { min-height: 36px; padding: 0 13px; }
+.aiced-change-review--side-by-side .aiced-change-review__actions .aiced-change-review__view-full { margin-right: auto; color: var(--color-text-muted); border-color: var(--color-border); background: #fff; }
+.aiced-change-review--side-by-side .aiced-change-review__actions .is-approve { color: #fff; border-color: #151715; background: #151715; }
+
+@media (max-width: 760px) {
+    .aiced-article-expanded-layout.has-change-review { grid-template-columns: 1fr; }
+    .aiced-article-expanded-layout.has-change-review > .aiced-change-review { grid-column: 1; }
+    .aiced-article-expanded-layout.has-change-review .aiced-article-content,
+    .aiced-change-review--side-by-side { padding: 14px; }
+    .aiced-change-review__pending { position: static; display: inline-block; margin-top: 9px; }
+}
+
 .aiced-audience-overview {
     display: grid;
-    grid-template-columns: minmax(130px, .55fr) minmax(150px, .9fr) minmax(0, 1.5fr);
+    grid-template-columns: minmax(170px, .7fr) minmax(0, 1.3fr);
     gap: 20px;
     padding: 18px 0;
     border-bottom: 1px solid var(--color-border);
@@ -757,10 +983,14 @@ html.aiced-workflow-restoring .aiced-workspace::before {
 .aiced-audience-overview > div + div { padding-left: 20px; border-left: 1px solid var(--color-border); }
 .aiced-audience-overview__label { display: block; margin-bottom: 8px; color: var(--color-text-muted); font-size: 10px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; }
 .aiced-audience-overview .aiced-audience-count { margin: 0; color: var(--color-text); font-size: 35px; font-weight: 650; letter-spacing: -.05em; line-height: 1; }
-.aiced-audience-overview .aiced-audience-count + span { display: block; max-width: 11ch; margin-top: 4px; color: var(--color-text-muted); font-size: 12px; line-height: 1.3; }
+.aiced-audience-overview .aiced-audience-count + span { display: block; margin-top: 5px; color: var(--color-text-muted); font-size: 12px; font-weight: 600; line-height: 1.3; }
 .aiced-audience-overview .aiced-tag-list { gap: 5px; }
 .aiced-audience-overview .aiced-tag-list li { padding: 4px 8px; background: #f1f3f1; }
 .aiced-audience-overview p { max-width: 48ch; margin: 0; font-size: 13px; line-height: 1.45; }
+.aiced-audience-overview__count p { margin-top: 9px; color: var(--color-text-muted); }
+.aiced-audience-rationale { padding: 16px 0; border-bottom: 1px solid var(--color-border); }
+.aiced-audience-rationale h2 { margin: 0 0 6px; font-size: 13px; letter-spacing: -.01em; }
+.aiced-audience-rationale p { max-width: 62ch; margin: 0; color: var(--color-text-muted); font-size: 13px; line-height: 1.5; }
 
 .aiced-audience-preview { padding-top: 18px; }
 .aiced-audience-preview > header { display: flex; align-items: start; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
@@ -778,9 +1008,122 @@ html.aiced-workflow-restoring .aiced-workspace::before {
 .aiced-audience-preview td:nth-child(3) span { padding: 3px 6px; border-radius: 999px; background: #f0f2f0; color: #59605b; font-size: 10px; }
 .aiced-audience-preview__status { color: #23733b !important; font-weight: 600; }
 .aiced-audience-preview__status::before { display: inline-block; width: 6px; height: 6px; margin: 0 5px 1px 0; border-radius: 50%; background: currentColor; content: ""; }
+
+/* Audience edit mirrors the quiet filter-and-match layout without changing matching rules. */
+.aiced-audience-edit-form {
+    gap: 22px;
+    padding: 0 0 22px;
+    margin: 0 0 22px;
+    border: 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.aiced-audience-edit-form__heading > p:first-child,
+.aiced-audience-edit-form__matches > span,
+.aiced-audience-edit-form__rule > span {
+    margin: 0 0 8px;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    font-weight: 650;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.aiced-audience-edit-form__heading h2 {
+    margin: 0 0 7px;
+    font-size: 28px;
+    line-height: 1.2;
+}
+
+.aiced-audience-edit-form__heading > p:last-child,
+.aiced-audience-edit-form__filters > p,
+.aiced-audience-edit-form__matches > p,
+.aiced-audience-edit-form__rule p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.aiced-audience-edit-form__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(230px, .95fr);
+    gap: 38px;
+}
+
+.aiced-audience-edit-form__filters {
+    min-width: 0;
+}
+
+.aiced-audience-edit-form__filters h3 {
+    margin: 0 0 8px;
+    font-size: 19px;
+}
+
+.aiced-audience-edit-form .aiced-edit-tags {
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.aiced-audience-edit-form .aiced-edit-tags label {
+    min-height: 42px;
+    padding: 8px 15px;
+    border-color: var(--color-border-strong);
+    border-radius: 999px;
+    color: var(--color-text);
+    background: #fafbfa;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.aiced-audience-edit-form .aiced-edit-tags input {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: #202320;
+}
+
+.aiced-audience-edit-form__rule {
+    display: grid;
+    gap: 5px;
+    padding-top: 22px;
+    margin-top: 22px;
+    border-top: 1px solid var(--color-border);
+}
+
+.aiced-audience-edit-form__rule strong { font-size: 21px; }
+
+.aiced-audience-edit-form__matches {
+    display: grid;
+    align-content: center;
+    gap: 5px;
+    padding-left: 30px;
+    border-left: 1px solid var(--color-border);
+}
+
+.aiced-audience-edit-form__matches > span { margin-bottom: 10px; }
+.aiced-audience-edit-form__matches > strong { font-size: 46px; font-weight: 650; letter-spacing: -.05em; line-height: 1; }
+.aiced-audience-edit-form__matches-message { font-size: 15px; }
+.aiced-audience-edit-form__preview-list { display: grid; gap: 8px; padding: 13px 0 0; margin: 5px 0 0; border-top: 1px solid var(--color-border); list-style: none; }
+.aiced-audience-edit-form__preview-list li { display: grid; gap: 2px; }
+.aiced-audience-edit-form__preview-list strong { font-size: 16px; line-height: 1.3; }
+.aiced-audience-edit-form__preview-list span { color: var(--color-text-muted); font-size: 14px; line-height: 1.3; }
+
+.aiced-review--draft #aiced-card-audience:has(.aiced-audience-edit-form) > .aiced-audience-overview,
+.aiced-review--draft #aiced-card-audience:has(.aiced-audience-edit-form) > .aiced-audience-rationale,
+.aiced-review--draft #aiced-card-audience:has(.aiced-audience-edit-form) > .aiced-audience-preview {
+    display: none;
+}
+
+@media (max-width: 700px) {
+    .aiced-audience-edit-form__layout { grid-template-columns: 1fr; gap: 24px; }
+    .aiced-audience-edit-form__matches { padding: 20px 0 0; border-top: 1px solid var(--color-border); border-left: 0; }
+}
+
 .aiced-draft-email-preview { padding-top: 22px; margin-top: 22px; border-top: 1px solid var(--color-border); }
 .aiced-draft-email-preview .aiced-email-placeholder { max-width: 620px; margin: 0 auto; border: 1px solid var(--color-border); box-shadow: none; }
 .aiced-draft-email-preview .aiced-card__note { max-width: 620px; margin: 12px auto 0; text-align: center; }
+.aiced-review--published .aiced-draft-email-preview { display: none; }
 
 /* Published campaign review: real email at left, summary and recipients at right. */
 .aiced-campaign-ready-intro { padding: 18px 0 24px; border-bottom: 1px solid var(--color-border); }
@@ -1075,4 +1418,51 @@ html.aiced-workflow-restoring .aiced-workspace::before {
     .aiced-review--draft .aiced-proposal-nav button { min-height: 82px; }
     .aiced-review--draft .aiced-proposal-nav button::after { top: 27px; }
     .aiced-review--draft .aiced-proposal-nav button:not(:last-child)::before { top: 31px; }
+}
+
+/* Campaign preview hierarchy: recipient-facing copy first, internal name last. */
+.aiced-review--draft #aiced-card-campaign .aiced-details {
+    gap: 0;
+    max-width: 720px;
+}
+
+.aiced-review--draft #aiced-card-campaign .aiced-details > div {
+    gap: 7px;
+    padding: 18px 0;
+    border: 0;
+}
+
+.aiced-review--draft #aiced-card-campaign .aiced-details > div + div {
+    border-top: 1px solid var(--color-border);
+}
+
+.aiced-review--draft #aiced-card-campaign .aiced-details__subject {
+    padding-top: 0;
+}
+
+.aiced-review--draft #aiced-card-campaign .aiced-details dt {
+    color: var(--color-text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.aiced-review--draft #aiced-card-campaign .aiced-details__subject dd {
+    color: var(--color-text);
+    font-size: clamp(21px, 2vw, 28px);
+    font-weight: 650;
+    line-height: 1.25;
+}
+
+.aiced-review--draft #aiced-card-campaign .aiced-details__preheader dd {
+    color: var(--color-text-muted);
+    font-size: 16px;
+    line-height: 1.55;
+}
+
+.aiced-review--draft #aiced-card-campaign .aiced-details__secondary dd {
+    color: var(--color-text-muted);
+    font-size: 14px;
+    line-height: 1.45;
 }

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Aiced Revision Panel — What Happened</title>
+  <style>
+    @page { margin: 0.7in; }
+    body { color: #1b221c; font: 12pt/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    h1 { margin: 0 0 8px; font-size: 25pt; letter-spacing: -.03em; }
+    h2 { margin: 25px 0 8px; font-size: 16pt; }
+    p, li { max-width: 44rem; }
+    .lead { color: #526056; font-size: 14pt; }
+    .box { margin: 16px 0; padding: 14px 16px; border-left: 4px solid #2e6841; background: #edf7ef; }
+    code { padding: 1px 4px; border-radius: 3px; background: #f0f2ef; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }
+    .flow { padding: 14px; border: 1px solid #d5ddd6; border-radius: 8px; background: #fafcf9; white-space: pre-line; }
+    .small { color: #667066; font-size: 10pt; }
+  </style>
+</head>
+<body>
+  <h1>Aiced Revision Panel: What Happened</h1>
+  <p class="lead">Plain-English notes for explaining why the “Revised by Aiced” panel disappeared, and how it was fixed.</p>
+
+  <div class="box">
+    <strong>The short answer:</strong> This was not an AI, database, or CSS problem. One JavaScript variable had the wrong name. The page successfully began drawing the Original article, then JavaScript stopped before it could draw the Revised by Aiced panel.
+  </div>
+
+  <h2>What the user was supposed to see</h2>
+  <div class="flow">Ask Aiced for a revision
+↓
+Flask asks AI for a proposed change
+↓
+Flask validates the proposal but does not save it yet
+↓
+Browser displays:
+  Left: Original article
+  Right: Revised by Aiced
+↓
+User chooses Accept Changes or Discard</div>
+
+  <h2>What actually happened</h2>
+  <ol>
+    <li>The AI revision request succeeded.</li>
+    <li>The browser received the current article and the proposed revision.</li>
+    <li>The browser started rendering the left-side Original article.</li>
+    <li>It then calculated which article blocks had changed.</li>
+    <li>That calculation referenced <code>proposedBlocks</code>, but the code had created the variable as <code>revisedBlocks</code>.</li>
+    <li>JavaScript stopped at that point, before it appended the right-side Revised by Aiced panel.</li>
+  </ol>
+
+  <p>This is why the left panel could still appear while the right panel was missing. The failure happened in the middle of rendering, not before rendering began.</p>
+
+  <h2>The exact technical bug</h2>
+  <p>The comparison renderer created:</p>
+  <p><code>const revisedBlocks = revisedArticle.contentBlocks || [];</code></p>
+  <p>But it later attempted to use:</p>
+  <p><code>proposedBlocks[proposedIndex]</code></p>
+  <p>Because <code>proposedBlocks</code> did not exist, the browser raised a JavaScript reference error. The correction was simply to use:</p>
+  <p><code>revisedBlocks[proposedIndex]</code></p>
+
+  <h2>Why it was confusing</h2>
+  <ul>
+    <li>The visual symptom looked like a CSS/layout issue.</li>
+    <li>The server returned successful responses, so Flask logs looked normal.</li>
+    <li>The Original side rendered before the crash, making it seem like only the right column had a styling problem.</li>
+    <li>The review feature involves several steps: AI response, validation, temporary browser state, comparison logic, and the final page update.</li>
+  </ul>
+
+  <h2>What was improved beyond the one-line fix</h2>
+  <ul>
+    <li>A dedicated <code>pendingArticleRevision</code> view model now holds the current article, proposed article, and changed fields.</li>
+    <li>Normal article rendering and pending-comparison rendering are now separate paths. A normal rerender cannot accidentally overwrite a pending comparison.</li>
+    <li>Article revisions keep the side-by-side Original / Revised by Aiced comparison visible.</li>
+    <li>CTA-only, Campaign-only, and Audience-only revisions explicitly say that the article is unchanged, instead of showing a misleading article comparison.</li>
+    <li>Accept still uses the existing save workflow. Discard still makes no database change. Publishing and sending remain separate human actions.</li>
+  </ul>
+
+  <h2>How the fix was tested</h2>
+  <ul>
+    <li>Content-block article revision: both columns appear.</li>
+    <li>Title-only article revision: both columns appear.</li>
+    <li>CTA-only revision: a non-article review notice appears.</li>
+    <li>Discard: removes the pending comparison and restores the normal article.</li>
+    <li>Accept before saving a draft: applies the accepted revision to the browser proposal.</li>
+    <li>Rerendering while a revision is pending: keeps exactly one Revised by Aiced panel visible.</li>
+  </ul>
+
+  <h2>Useful analogy</h2>
+  <p>Imagine two people setting up a before-and-after display. The first person puts the “before” page on the wall. The second person is supposed to hang the “after” page, but their instruction sheet refers to a tool name that does not exist. They stop immediately. The first page is still on the wall, but the second never gets hung.</p>
+
+  <p class="small">Scope: frontend revision display only. No database schema, AI prompt, publishing, recipient selection, or email-sending behavior was changed.</p>
+</body>
+</html>

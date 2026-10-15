@@ -1355,6 +1355,31 @@ def resolve_active_aiced_audience(tags):
     return list(db.session.execute(statement.order_by(Subscriber.id)).scalars())
 
 
+def resolve_aiced_proposed_audience_tags(data, current_tags):
+    """Validate an unsaved Aiced audience selection without mutating a workflow."""
+    if not isinstance(data, dict) or set(data) != {"tags"}:
+        return None, "Choose existing audience tags to preview."
+    proposed_tags = data.get("tags")
+    if not isinstance(proposed_tags, list) or len(proposed_tags) > MAXIMUM_CAMPAIGN_AICED_TAGS:
+        return None, "Choose up to five existing audience tags."
+
+    tags_by_normalized_name = {
+        tag.normalized_name: tag for tag in current_tags
+    }
+    resolved_tags, seen = [], set()
+    for name in proposed_tags:
+        if not is_plain_ai_text(name, MAXIMUM_SUBSCRIBER_TAG_NAME_CHARACTERS):
+            return None, "Choose valid existing audience tags."
+        normalized_name = normalize_subscriber_tag(name)
+        tag = tags_by_normalized_name.get(normalized_name)
+        if tag is None:
+            return None, "One or more selected audience tags are no longer available."
+        if normalized_name not in seen:
+            seen.add(normalized_name)
+            resolved_tags.append(tag)
+    return resolved_tags, None
+
+
 def subscriber_display_name(subscriber):
     return " ".join(
         value.strip()
@@ -2540,6 +2565,66 @@ def preview_aiced_workflow_audience(workflow_token):
             serialize_aiced_audience_preview_subscriber(
                 subscriber, handoff.audience_tag_names
             )
+            for subscriber in subscribers
+        ],
+    })
+
+
+@app.post("/api/aiced/workflows/<workflow_token>/audience-preview")
+@require_editor_auth
+def preview_aiced_proposed_workflow_audience(workflow_token):
+    """Preview an unsaved draft audience using the same active-only AND resolver."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{32,64}", workflow_token):
+        return jsonify({"message": "This Aiced workflow is unavailable."}), 404
+
+    handoff = db.session.execute(
+        db.select(AicedArticleCampaignHandoff).where(
+            AicedArticleCampaignHandoff.workflow_token == workflow_token
+        )
+    ).scalar_one_or_none()
+    if handoff is None or handoff.expires_at <= datetime.utcnow():
+        return jsonify({"message": "This Aiced workflow is unavailable."}), 404
+
+    post = db.session.get(Post, handoff.post_id)
+    if post is None or post.status != "draft":
+        return jsonify({"message": "This Aiced workflow is no longer available for audience editing."}), 409
+
+    campaign = db.session.execute(
+        db.select(Campaign).where(Campaign.workflow_handoff_id == handoff.id)
+    ).scalar_one_or_none()
+    if campaign is not None:
+        return jsonify({"message": "This campaign already has a frozen recipient snapshot."}), 409
+
+    current_tags = list(
+        db.session.execute(
+            db.select(SubscriberTag).order_by(SubscriberTag.name)
+        ).scalars()
+    )
+    selected_tags, error = resolve_aiced_proposed_audience_tags(
+        request.get_json(silent=True), current_tags
+    )
+    if error:
+        return jsonify({"message": error}), 400
+
+    subscriber_ids = resolve_active_aiced_audience(selected_tags)
+    preview_ids = subscriber_ids[:5]
+    subscribers = list(
+        db.session.execute(
+            db.select(Subscriber)
+            .where(
+                Subscriber.id.in_(preview_ids),
+                Subscriber.status == Subscriber.STATUS_ACTIVE,
+            )
+            .order_by(Subscriber.id)
+        ).scalars()
+    ) if preview_ids else []
+    selected_tag_names = [tag.name for tag in selected_tags]
+    return jsonify({
+        "source": "proposed",
+        "campaignStatus": None,
+        "matchingCount": len(subscriber_ids),
+        "subscribers": [
+            serialize_aiced_audience_preview_subscriber(subscriber, selected_tag_names)
             for subscriber in subscribers
         ],
     })

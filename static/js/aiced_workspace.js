@@ -13,10 +13,12 @@ const articleContent = document.querySelector("#aiced-article-content");
 const articleExpandedLayout = document.querySelector("#aiced-article-expanded-layout");
 const articleToggle = document.querySelector("#aiced-article-toggle");
 const approveButton = document.querySelector("#aiced-approve-button");
+const draftOnboarding = document.querySelector("#aiced-draft-onboarding");
 const restoreStartNewButton = document.querySelector("#aiced-restore-start-new");
 const refineRequest = document.querySelector("#aiced-refine-request");
 const refineSendButton = document.querySelector("#aiced-refine-send");
 const publishButton = document.querySelector("#aiced-publish-button");
+const reviewActions = document.querySelector("#aiced-review-actions");
 const liveArticleLink = document.querySelector("#aiced-live-article");
 const sendCampaignButton = document.querySelector("#aiced-send-campaign-button");
 const sendConfirmation = document.querySelector("#aiced-send-confirmation");
@@ -47,14 +49,20 @@ let approvalState = "idle";
 let savedWorkflow = null;
 let isRevising = false;
 let isManualSaving = false;
+let isApplyingRevision = false;
 let isCampaignProcessing = false;
 let campaignDelivery = null;
 let activeProposalStep = 0;
 let refineComposerExpanded = false;
 let pendingReviewEntries = [];
+let pendingArticleRevision = null;
 let pendingReviewHeading = "Aiced proposed changes";
 let pendingReviewSummary = "";
+let showFullRevisionComparison = null;
 let selectedCampaignRecipientIds = new Set();
+let audiencePreviewDebounce = null;
+let audiencePreviewRequestController = null;
+let audiencePreviewRequestSequence = 0;
 
 const proposalSteps = [
     { label: "Article", next: "Call to Action", placeholder: "Ask Aiced to rewrite, expand, or refine your article…", prompts: [["Make it shorter", "Make the article shorter while keeping the important details."], ["More conversational", "Make the article more conversational and approachable."], ["Improve the headline", "Improve the article headline for clarity and interest."], ["Add more detail", "Add more useful detail to the article."], ["Change the tone", "Make the article warmer and more welcoming."]] },
@@ -72,10 +80,12 @@ function isDraftProposal() {
 function renderRefineSuggestions() {
     refineSuggestions.replaceChildren();
     const step = proposalSteps[activeProposalStep];
+    const revisionsEnabled = approvalState === "saved" && !hasPendingReviewEntries();
     step.prompts.forEach(([label, prompt]) => {
         const button = document.createElement("button");
         button.type = "button";
         button.textContent = label;
+        button.disabled = !revisionsEnabled;
         button.addEventListener("click", () => {
             refineRequest.value = prompt;
             resizeRefineComposer();
@@ -103,10 +113,23 @@ function setActiveProposalStep(nextStep, { focus = false } = {}) {
     proposalPosition.textContent = `${String(activeProposalStep + 1).padStart(2, "0")} / ${String(lastAvailableStep + 1).padStart(2, "0")}`;
     proposalPreviousButtons.forEach((button) => { button.disabled = activeProposalStep === 0; });
     proposalNextButtons.forEach((button) => { button.disabled = activeProposalStep === lastAvailableStep; });
+    proposalNextButton.hidden = activeProposalStep === lastAvailableStep;
     proposalNextButton.textContent = activeProposalStep === lastAvailableStep ? "Review complete" : `Next: ${proposalSteps[activeProposalStep].next} →`;
     campaignReadyIntro.hidden = draft || activeProposalStep === 5;
     refineRequest.placeholder = proposalSteps[activeProposalStep].placeholder;
     renderRefineSuggestions();
+    syncBottomActions();
+}
+
+function syncBottomActions() {
+    const showDraftPublish = approvalState === "saved" && isDraftProposal() && activeProposalStep === 3;
+    publishButton.hidden = !showDraftPublish;
+
+    if (isDraftProposal()) {
+        reviewActions.hidden = !showDraftPublish;
+    } else {
+        reviewActions.hidden = false;
+    }
 }
 
 function resizeRefineComposer() {
@@ -124,7 +147,18 @@ function syncRefineComposerExpansion() {
 }
 
 function setManualEditingEnabled(enabled) {
-    document.querySelectorAll("[data-card-edit]").forEach((button) => { button.disabled = !enabled; });
+    document.querySelectorAll("[data-card-edit]").forEach((button) => {
+        button.disabled = !enabled;
+        const lockedControl = button.closest("[data-locked-control]");
+        lockedControl?.classList.toggle("is-locked", !enabled);
+        if (enabled) {
+            button.removeAttribute("aria-describedby");
+            button.removeAttribute("title");
+        } else {
+            button.setAttribute("aria-describedby", "aiced-editing-disabled-explanation");
+            button.title = "Click Save & Edit Campaign first to unlock editing.";
+        }
+    });
     const fullEditor = document.querySelector("#aiced-article-full-editor");
     fullEditor.hidden = !enabled;
     fullEditor.href = enabled ? `/posts/new/build?edit=${savedWorkflow.postId}&workflow=${encodeURIComponent(savedWorkflow.workflowToken)}` : "";
@@ -184,6 +218,68 @@ async function loadAudiencePreview() {
     }
 }
 
+function renderProposedAudienceEditPreview(form, preview, { loading = false, error = "" } = {}) {
+    const matches = form.querySelector(".aiced-audience-edit-form__matches");
+    if (!matches) return;
+    const count = matches.querySelector(".aiced-audience-edit-form__count");
+    const message = matches.querySelector(".aiced-audience-edit-form__matches-message");
+    const list = matches.querySelector(".aiced-audience-edit-form__preview-list");
+    list.replaceChildren();
+    if (loading) {
+        count.textContent = "—";
+        message.textContent = "Updating matching recipients…";
+        return;
+    }
+    if (error) {
+        count.textContent = "—";
+        message.textContent = error;
+        return;
+    }
+    const subscribers = Array.isArray(preview?.subscribers) ? preview.subscribers : [];
+    const matchingCount = Number(preview?.matchingCount) || 0;
+    count.textContent = String(matchingCount);
+    if (!matchingCount) {
+        message.textContent = "No active subscribers match every selected tag.";
+        return;
+    }
+    message.textContent = `Showing ${subscribers.length} of ${matchingCount} proposed match${matchingCount === 1 ? "" : "es"}.`;
+    subscribers.forEach((subscriber) => {
+        const item = document.createElement("li");
+        const name = document.createElement("strong"); name.textContent = subscriber.name || "Subscriber";
+        const email = document.createElement("span"); email.textContent = subscriber.email || "—";
+        item.append(name, email); list.append(item);
+    });
+}
+
+function queueProposedAudiencePreview(form, { immediate = false } = {}) {
+    clearTimeout(audiencePreviewDebounce);
+    const requestPreview = async () => {
+        if (!form.isConnected || !savedWorkflow) return;
+        const sequence = ++audiencePreviewRequestSequence;
+        audiencePreviewRequestController?.abort();
+        audiencePreviewRequestController = new AbortController();
+        const tags = [...form.querySelectorAll('input[name="audience-tag"]:checked')].map((input) => input.value);
+        renderProposedAudienceEditPreview(form, null, { loading: true });
+        try {
+            const response = await fetch(`/api/aiced/workflows/${encodeURIComponent(savedWorkflow.workflowToken)}/audience-preview`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tags }),
+                signal: audiencePreviewRequestController.signal,
+            });
+            const preview = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(preview.message || "Matching recipients are unavailable.");
+            if (!form.isConnected || sequence !== audiencePreviewRequestSequence || preview.source !== "proposed") return;
+            renderProposedAudienceEditPreview(form, preview);
+        } catch (error) {
+            if (error.name === "AbortError" || !form.isConnected || sequence !== audiencePreviewRequestSequence) return;
+            renderProposedAudienceEditPreview(form, null, { error: error.message || "Matching recipients are unavailable." });
+        }
+    };
+    if (immediate) requestPreview();
+    else audiencePreviewDebounce = window.setTimeout(requestPreview, 250);
+}
+
 async function loadPublishedEmailPreview() {
     if (!savedWorkflow) return;
     const frame = document.querySelector("#aiced-email-rendered-preview");
@@ -197,8 +293,10 @@ async function loadPublishedEmailPreview() {
 
 function setPublishedState() {
     approvalState = "published";
+    draftOnboarding.hidden = true;
     approveButton.hidden = true;
     publishButton.hidden = true;
+    reviewActions.hidden = false;
     setRevisionComposerEnabled(false);
     setManualEditingEnabled(false);
     review.classList.remove("aiced-review--draft");
@@ -414,10 +512,14 @@ function renderFeaturedImage(article) {
     container.replaceChildren();
     const title = document.createElement("strong"); title.textContent = "Featured image"; container.append(title);
     const actions = document.createElement("div"); actions.className = "aiced-featured-image__actions";
-    const generate = document.createElement("button"); generate.type = "button"; generate.textContent = article.featuredImage ? "✨ Regenerate" : "✨ Generate with Aiced"; generate.disabled = approvalState !== "saved"; generate.addEventListener("click", generateFeaturedImage);
-    const upload = document.createElement("button"); upload.type = "button"; upload.textContent = article.featuredImage ? "Upload" : "Upload Image"; upload.disabled = approvalState !== "saved"; upload.addEventListener("click", () => container.querySelector("input[type=file]").click());
+    const editingLocked = approvalState !== "saved";
+    const lockedHint = "Click Save & Edit Campaign first to unlock editing.";
+    actions.classList.toggle("is-locked", editingLocked);
+    actions.dataset.lockedHint = lockedHint;
+    const generate = document.createElement("button"); generate.type = "button"; generate.textContent = article.featuredImage ? "✨ Regenerate" : "✨ Generate with Aiced"; generate.disabled = editingLocked; if (editingLocked) generate.title = lockedHint; generate.addEventListener("click", generateFeaturedImage);
+    const upload = document.createElement("button"); upload.type = "button"; upload.textContent = article.featuredImage ? "Upload" : "Upload Image"; upload.disabled = editingLocked; if (editingLocked) upload.title = lockedHint; upload.addEventListener("click", () => container.querySelector("input[type=file]").click());
     actions.append(generate, upload);
-    if (article.featuredImage) { const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "Remove"; remove.disabled = approvalState !== "saved"; remove.addEventListener("click", () => saveFeaturedImage(null)); actions.append(remove); }
+    if (article.featuredImage) { const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "Remove"; remove.disabled = editingLocked; if (editingLocked) remove.title = lockedHint; remove.addEventListener("click", () => saveFeaturedImage(null)); actions.append(remove); }
     const input = document.createElement("input"); input.type = "file"; input.accept = "image/jpeg,image/png,image/webp"; input.hidden = true; input.addEventListener("change", uploadFeaturedImage);
     container.append(actions);
     if (article.featuredImage) { const image = document.createElement("img"); image.src = article.featuredImage; image.alt = "Current featured image"; container.append(image); }
@@ -449,7 +551,7 @@ async function uploadFeaturedImage(event) {
     catch (error) { setStatus(reviewStatus, error.message || "Image upload failed.", true); }
 }
 
-function renderArticleBlocks(blocks) {
+function renderNormalArticleBlocks(blocks) {
     articleContent.replaceChildren();
     const source = document.createElement("div");
     source.className = "aiced-article-content__source";
@@ -461,7 +563,6 @@ function renderArticleBlocks(blocks) {
         }
     });
     articleContent.append(source);
-    renderPendingRevisionReview();
 }
 
 function sameReviewValue(left, right) { return JSON.stringify(left) === JSON.stringify(right); }
@@ -504,51 +605,291 @@ function makePendingReviewEntries(revision, proposal) {
     return entries;
 }
 
-function renderPendingRevisionReview() {
-    const reviewSlot = document.querySelector(".aiced-article-change-review-slot");
-    if (!reviewSlot) return;
-    reviewSlot.querySelector(".aiced-change-review")?.remove();
-    articleExpandedLayout.classList.toggle("has-change-review", pendingReviewEntries.length > 0);
-    if (!pendingReviewEntries.length) return;
-    const panel = document.createElement("aside"); panel.className = "aiced-change-review"; panel.setAttribute("aria-label", "Aiced proposed changes");
-    const headingRow = document.createElement("div"); headingRow.className = "aiced-change-review__heading";
-    const heading = document.createElement("h3"); heading.textContent = pendingReviewHeading; headingRow.append(heading);
-    if (pendingReviewSummary) appendTextElement(headingRow, "p", pendingReviewSummary);
-    panel.append(headingRow);
-    pendingReviewEntries.forEach((entry) => {
-        const card = document.createElement("section"); card.className = `aiced-change-review__item is-${entry.status}`;
-        appendTextElement(card, "strong", `${entry.section} · ${entry.label}`);
-        const comparison = document.createElement("div"); comparison.className = "aiced-change-review__comparison";
-        const before = document.createElement("p"); before.className = "aiced-change-review__before";
-        appendTextElement(before, "span", "Before"); before.append(document.createTextNode(reviewValue(entry.original, entry.field)));
-        const update = document.createElement("p"); update.className = "aiced-change-review__update";
-        appendTextElement(update, "span", "Aiced update"); update.append(document.createTextNode(reviewValue(entry.proposed, entry.field)));
-        comparison.append(before, update);
-        card.append(comparison);
-        const comparisonText = `${reviewValue(entry.original, entry.field)} ${reviewValue(entry.proposed, entry.field)}`;
-        if (comparisonText.length > 150) {
-            comparison.classList.add("is-collapsed");
-            const toggle = document.createElement("button"); toggle.type = "button"; toggle.className = "aiced-change-review__toggle"; toggle.textContent = "Show more";
-            toggle.addEventListener("click", () => {
-                const expanded = comparison.classList.toggle("is-expanded");
-                comparison.classList.toggle("is-collapsed", !expanded);
-                toggle.textContent = expanded ? "Show less" : "Show more";
-            });
-            card.append(toggle);
+function revisionPayload(entries) {
+    return entries.reduce((payload, entry) => {
+        Object.entries(entry.payload).forEach(([section, updates]) => {
+            payload[section] = { ...(payload[section] || {}), ...updates };
+        });
+        return payload;
+    }, {});
+}
+
+function cloneArticleForRevision(article) {
+    return {
+        ...article,
+        tags: [...(article.tags || [])],
+        contentBlocks: (article.contentBlocks || []).map((block) => ({ ...block })),
+    };
+}
+
+function derivePendingArticleRevision() {
+    if (!reviewedProposal?.article) return null;
+    const entries = pendingReviewEntries.filter((entry) => entry.status === "pending" && entry.section === "Article");
+    if (!entries.length) return null;
+    const currentArticle = cloneArticleForRevision(reviewedProposal.article);
+    const proposedArticle = cloneArticleForRevision(currentArticle);
+    entries.forEach((entry) => { proposedArticle[entry.field] = entry.proposed; });
+    return { currentArticle, proposedArticle, changedFields: entries.map((entry) => entry.field), entries };
+}
+
+function blockKey(block) { return `${block.type}:${block.text || block.url || ""}`; }
+
+function textTokens(text) {
+    return String(text || "").match(/\s+|[\p{L}\p{N}_]+|[^\s\p{L}\p{N}_]/gu) || [];
+}
+
+function lcsTable(left, right) {
+    const table = Array.from({ length: left.length + 1 }, () => Array(right.length + 1).fill(0));
+    for (let leftIndex = left.length - 1; leftIndex >= 0; leftIndex -= 1) {
+        for (let rightIndex = right.length - 1; rightIndex >= 0; rightIndex -= 1) {
+            table[leftIndex][rightIndex] = left[leftIndex] === right[rightIndex]
+                ? table[leftIndex + 1][rightIndex + 1] + 1
+                : Math.max(table[leftIndex + 1][rightIndex], table[leftIndex][rightIndex + 1]);
         }
-        const actions = document.createElement("div"); actions.className = "aiced-change-review__actions";
-        if (entry.status === "pending") {
-            const approve = document.createElement("button"); approve.type = "button"; approve.textContent = "Accept change"; approve.className = "is-approve"; approve.addEventListener("click", () => applyPendingReviewEntry(entry));
-            const decline = document.createElement("button"); decline.type = "button"; decline.textContent = "Reject change"; decline.className = "is-decline"; decline.addEventListener("click", () => { entry.status = "declined"; syncProposalApprovalState(); syncRevisionComposer(); renderPendingRevisionReview(); setStatus(reviewStatus, "Change rejected. Your proposal was not overwritten."); });
-            actions.append(approve, decline);
-        } else if (entry.status === "approved") {
-            const revert = document.createElement("button"); revert.type = "button"; revert.textContent = "Revert"; revert.addEventListener("click", () => revertPendingReviewEntry(entry)); actions.append(revert);
-        } else if (entry.status === "declined") {
-            const reconsider = document.createElement("button"); reconsider.type = "button"; reconsider.textContent = "Reconsider"; reconsider.addEventListener("click", () => { entry.status = "pending"; syncProposalApprovalState(); syncRevisionComposer(); renderPendingRevisionReview(); }); actions.append(reconsider);
-        }
-        card.append(actions); panel.append(card);
+    }
+    return table;
+}
+
+function wordSimilarity(leftText, rightText) {
+    const left = textTokens(leftText).filter((token) => /[\p{L}\p{N}_]/u.test(token)).map((token) => token.toLowerCase());
+    const right = textTokens(rightText).filter((token) => /[\p{L}\p{N}_]/u.test(token)).map((token) => token.toLowerCase());
+    if (!left.length || !right.length) return 0;
+    return lcsTable(left, right)[0][0] / Math.max(left.length, right.length);
+}
+
+function matchArticleBlocks(originalBlocks, proposedBlocks) {
+    const originalKeys = originalBlocks.map(blockKey);
+    const proposedKeys = proposedBlocks.map(blockKey);
+    const table = lcsTable(originalKeys, proposedKeys);
+    const originalToProposed = new Map();
+    const proposedToOriginal = new Map();
+    let originalIndex = 0;
+    let proposedIndex = 0;
+    while (originalIndex < originalKeys.length && proposedIndex < proposedKeys.length) {
+        if (originalKeys[originalIndex] === proposedKeys[proposedIndex]) {
+            originalToProposed.set(originalIndex, proposedIndex); proposedToOriginal.set(proposedIndex, originalIndex); originalIndex += 1; proposedIndex += 1;
+        } else if (table[originalIndex + 1][proposedIndex] >= table[originalIndex][proposedIndex + 1]) originalIndex += 1;
+        else proposedIndex += 1;
+    }
+    const candidates = [];
+    originalBlocks.forEach((originalBlock, originalBlockIndex) => {
+        if (originalToProposed.has(originalBlockIndex) || !originalBlock.text) return;
+        proposedBlocks.forEach((proposedBlock, proposedBlockIndex) => {
+            if (proposedToOriginal.has(proposedBlockIndex) || originalBlock.type !== proposedBlock.type || !proposedBlock.text) return;
+            const similarity = wordSimilarity(originalBlock.text, proposedBlock.text);
+            if (similarity >= 0.35) candidates.push({ originalBlockIndex, proposedBlockIndex, similarity });
+        });
     });
-    reviewSlot.append(panel);
+    candidates.sort((left, right) => right.similarity - left.similarity);
+    candidates.forEach(({ originalBlockIndex, proposedBlockIndex }) => {
+        if (!originalToProposed.has(originalBlockIndex) && !proposedToOriginal.has(proposedBlockIndex)) {
+            originalToProposed.set(originalBlockIndex, proposedBlockIndex);
+            proposedToOriginal.set(proposedBlockIndex, originalBlockIndex);
+        }
+    });
+    return { originalToProposed, proposedToOriginal };
+}
+
+function appendWordDiff(element, originalText, proposedText, side) {
+    const originalTokens = textTokens(originalText);
+    const proposedTokens = textTokens(proposedText);
+    const table = lcsTable(originalTokens, proposedTokens);
+    const parts = [];
+    let originalIndex = 0;
+    let proposedIndex = 0;
+    while (originalIndex < originalTokens.length || proposedIndex < proposedTokens.length) {
+        if (originalIndex < originalTokens.length && proposedIndex < proposedTokens.length && originalTokens[originalIndex] === proposedTokens[proposedIndex]) {
+            parts.push({ kind: "unchanged", text: originalTokens[originalIndex] }); originalIndex += 1; proposedIndex += 1;
+        } else if (originalIndex < originalTokens.length && (proposedIndex === proposedTokens.length || table[originalIndex + 1][proposedIndex] >= table[originalIndex][proposedIndex + 1])) {
+            parts.push({ kind: "removed", text: originalTokens[originalIndex] }); originalIndex += 1;
+        } else {
+            parts.push({ kind: "added", text: proposedTokens[proposedIndex] }); proposedIndex += 1;
+        }
+    }
+    parts.forEach((part) => {
+        if ((side === "original" && part.kind !== "removed") || (side === "revised" && part.kind !== "added")) {
+            if (part.kind === "unchanged") element.append(document.createTextNode(part.text));
+            return;
+        }
+        const span = document.createElement("span"); span.className = `aiced-word-diff aiced-word-diff--${part.kind}`; span.textContent = part.text; element.append(span);
+    });
+}
+
+function appendRevisionBlock(container, block, match, side) {
+    const blockType = block.type;
+    const element = document.createElement(blockType === "heading" ? "h4" : blockType === "quote" ? "blockquote" : "p");
+    const changed = !match;
+    element.className = `aiced-revision-article__block${changed ? " is-block-change" : ""}`;
+    if (blockType === "image") element.textContent = "Image retained";
+    else if (blockType === "youtube") element.textContent = "Video retained";
+    else if (blockType === "cta") element.textContent = "Call to action retained";
+    else if (match && match.block.text !== block.text) appendWordDiff(element, side === "original" ? block.text : match.block.text, side === "original" ? match.block.text : block.text, side);
+    else element.textContent = block.text || "";
+    container.append(element);
+}
+
+function renderRevisionArticleColumn(container, article, label, statusLabel, changedClass, matches, { showFull, titleChanged, excerptChanged, otherArticle } = {}) {
+    const column = document.createElement("section");
+    column.className = `aiced-revision-article aiced-revision-article--${changedClass}`;
+    const header = document.createElement("header");
+    appendTextElement(header, "h3", label);
+    appendTextElement(header, "span", statusLabel);
+    column.append(header);
+    if (showFull || titleChanged) {
+        const title = document.createElement("h2"); title.className = `aiced-revision-article__title${titleChanged ? " is-inline-diff" : ""}`;
+        if (titleChanged) appendWordDiff(title, changedClass === "original" ? article.title : otherArticle.title, changedClass === "original" ? otherArticle.title : article.title, changedClass);
+        else title.textContent = article.title || "Untitled article";
+        column.append(title);
+    }
+    if (article.excerpt && (showFull || excerptChanged)) {
+        const excerpt = document.createElement("p"); excerpt.className = `aiced-revision-article__excerpt${excerptChanged ? " is-inline-diff" : ""}`;
+        if (excerptChanged) appendWordDiff(excerpt, changedClass === "original" ? article.excerpt : otherArticle.excerpt, changedClass === "original" ? otherArticle.excerpt : article.excerpt, changedClass);
+        else excerpt.textContent = article.excerpt;
+        column.append(excerpt);
+    }
+    const content = document.createElement("div"); content.className = "aiced-revision-article__content";
+    (article.contentBlocks || []).forEach((block, index) => {
+        const matchIndex = matches.get(index);
+        const match = Number.isInteger(matchIndex) ? { block: otherArticle.contentBlocks[matchIndex] } : null;
+        if (showFull || !match || match.block.text !== block.text) appendRevisionBlock(content, block, match, changedClass);
+    });
+    if (!content.childNodes.length) {
+        appendTextElement(
+            content,
+            "p",
+            changedClass === "revised" ? "No article-body changes were proposed." : "Article body unchanged.",
+            "aiced-revision-article__unchanged-note"
+        );
+    }
+    column.append(content);
+    container.append(column);
+}
+
+function discardPendingRevision() {
+    if (isApplyingRevision) return;
+    pendingReviewEntries = [];
+    pendingArticleRevision = null;
+    showFullRevisionComparison = null;
+    renderArticleBlocks(reviewedProposal.article.contentBlocks || []);
+    syncProposalApprovalState();
+    syncRevisionComposer();
+    setStatus(reviewStatus, "Changes discarded. Your current article remains unchanged.");
+}
+
+async function acceptPendingRevision() {
+    if (isApplyingRevision || !pendingReviewEntries.length) return;
+    isApplyingRevision = true;
+    const entries = pendingReviewEntries.filter((entry) => entry.status === "pending");
+    const payload = revisionPayload(entries);
+    setStatus(reviewStatus, "Applying Aiced’s proposed changes…");
+    try {
+        if (!savedWorkflow) {
+            applyReviewPayloadLocally(payload);
+            pendingReviewEntries = [];
+            pendingArticleRevision = null;
+            showFullRevisionComparison = null;
+            renderLocalRevisionResult("Changes accepted. Your proposal has been updated.");
+            return;
+        }
+        const workflowToken = savedWorkflow.workflowToken;
+        const response = await fetch(`/api/aiced/workflows/${encodeURIComponent(workflowToken)}`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        });
+        const proposal = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(proposal.message || "Aiced Bot could not save those changes.");
+        pendingReviewEntries = [];
+        pendingArticleRevision = null;
+        showFullRevisionComparison = null;
+        renderProposal(proposal, { resetStep: false });
+        markWorkflowSaved({ postId: proposal.workflow.postId, workflowToken }, "Changes accepted and saved.");
+        setActiveProposalStep(0);
+        setArticleExpanded(true);
+    } catch (error) {
+        setStatus(reviewStatus, error.message || "Aiced Bot could not apply those changes.", true);
+    } finally {
+        isApplyingRevision = false;
+        renderPendingRevisionReview();
+    }
+}
+
+function renderPendingRevisionReview() {
+    renderArticleBlocks(reviewedProposal?.article?.contentBlocks || []);
+}
+
+function appendPendingRevisionActions(panel, { showComparisonToggle = true, showFull = false } = {}) {
+    const actions = document.createElement("div"); actions.className = "aiced-change-review__actions";
+    if (showComparisonToggle) {
+        const comparisonToggle = document.createElement("button"); comparisonToggle.type = "button"; comparisonToggle.className = "aiced-change-review__view-full";
+        comparisonToggle.textContent = showFull ? "Show changed sections only" : "View full comparison";
+        comparisonToggle.disabled = isApplyingRevision;
+        comparisonToggle.addEventListener("click", () => { showFullRevisionComparison = !showFull; renderPendingRevisionReview(); });
+        actions.append(comparisonToggle);
+    }
+    const discard = document.createElement("button"); discard.type = "button"; discard.textContent = "Discard"; discard.className = "is-decline"; discard.disabled = isApplyingRevision; discard.addEventListener("click", discardPendingRevision);
+    const accept = document.createElement("button"); accept.type = "button"; accept.textContent = isApplyingRevision ? "Applying…" : "Accept Changes"; accept.className = "is-approve"; accept.disabled = isApplyingRevision; accept.addEventListener("click", acceptPendingRevision);
+    actions.append(discard, accept); panel.append(actions);
+}
+
+function renderNonArticleRevisionNotice(entries) {
+    const panel = document.createElement("aside"); panel.className = "aiced-change-review aiced-change-review--non-article"; panel.setAttribute("aria-label", "Aiced proposed non-article changes");
+    const heading = document.createElement("h3"); heading.textContent = "Review changes"; panel.append(heading);
+    const sections = [...new Set(entries.map((entry) => entry.section))];
+    appendTextElement(panel, "p", `Aiced proposed changes to ${sections.join(", ")}. The article itself is unchanged.`);
+    appendPendingRevisionActions(panel, { showComparisonToggle: false });
+    articleExpandedLayout.append(panel);
+}
+
+function renderArticleBlocks(blocks) {
+    articleExpandedLayout.querySelector(":scope > .aiced-change-review")?.remove();
+    pendingArticleRevision = derivePendingArticleRevision();
+    const pendingEntries = pendingReviewEntries.filter((entry) => entry.status === "pending");
+    articleExpandedLayout.classList.toggle("has-change-review", Boolean(pendingArticleRevision));
+    articleExpandedLayout.classList.toggle("has-nonarticle-review", !pendingArticleRevision && pendingEntries.length > 0);
+
+    if (pendingEntries.length) {
+        articleExpandedLayout.hidden = false;
+        articleToggle.setAttribute("aria-expanded", "true");
+    }
+
+    if (!pendingArticleRevision) {
+        renderNormalArticleBlocks(blocks);
+        if (pendingEntries.length) renderNonArticleRevisionNotice(pendingEntries);
+        return;
+    }
+
+    const { currentArticle: originalArticle, proposedArticle: revisedArticle } = pendingArticleRevision;
+    const originalBlocks = originalArticle.contentBlocks || [];
+    const revisedBlocks = revisedArticle.contentBlocks || [];
+    const { originalToProposed, proposedToOriginal } = matchArticleBlocks(originalBlocks, revisedBlocks);
+    const originalChangedCount = originalBlocks.filter((block, index) => {
+        const proposedIndex = originalToProposed.get(index);
+        return !Number.isInteger(proposedIndex) || revisedBlocks[proposedIndex].text !== block.text;
+    }).length;
+    const proposedChangedCount = revisedBlocks.filter((block, index) => {
+        const originalIndex = proposedToOriginal.get(index);
+        return !Number.isInteger(originalIndex) || originalBlocks[originalIndex].text !== block.text;
+    }).length;
+    const titleChanged = originalArticle.title !== revisedArticle.title;
+    const excerptChanged = originalArticle.excerpt !== revisedArticle.excerpt;
+    const compactComparison = Math.max(originalChangedCount, proposedChangedCount) <= 1;
+    const showFull = showFullRevisionComparison === null ? !compactComparison : showFullRevisionComparison;
+    articleContent.replaceChildren();
+    renderRevisionArticleColumn(
+        articleContent, originalArticle, "Original", "Current", "original", originalToProposed,
+        { showFull, titleChanged, excerptChanged, otherArticle: revisedArticle }
+    );
+    const panel = document.createElement("aside"); panel.className = "aiced-change-review aiced-change-review--side-by-side"; panel.setAttribute("aria-label", "Aiced proposed changes");
+    const headingRow = document.createElement("div"); headingRow.className = "aiced-change-review__heading";
+    const heading = document.createElement("h3"); heading.textContent = "Review changes"; headingRow.append(heading);
+    if (pendingReviewSummary) appendTextElement(headingRow, "p", pendingReviewSummary);
+    const pending = document.createElement("span"); pending.className = "aiced-change-review__pending"; pending.textContent = "Pending review"; headingRow.append(pending);
+    panel.append(headingRow);
+    renderRevisionArticleColumn(
+        panel, revisedArticle, "Revised by Aiced", "Proposed", "revised", proposedToOriginal,
+        { showFull, titleChanged, excerptChanged, otherArticle: originalArticle }
+    );
+    appendPendingRevisionActions(panel, { showFull });
+    articleExpandedLayout.append(panel);
 }
 
 function hasPendingReviewEntries() {
@@ -558,13 +899,15 @@ function hasPendingReviewEntries() {
 function syncProposalApprovalState() {
     if (approvalState !== "ready") return;
     const hasPendingChanges = hasPendingReviewEntries();
+    const isPersistedWorkflow = Boolean(reviewedProposal?.workflow);
+    draftOnboarding.hidden = isPersistedWorkflow;
     approveButton.disabled = hasPendingChanges;
-    approveButton.textContent = hasPendingChanges ? "Review pending changes" : "Approve Article →";
+    approveButton.textContent = hasPendingChanges ? "Review pending changes" : "Save & Edit Campaign →";
 }
 
 function syncRevisionComposer() {
     setRevisionComposerEnabled(
-        ["ready", "saved"].includes(approvalState) && !hasPendingReviewEntries()
+        approvalState === "saved" && !hasPendingReviewEntries()
     );
 }
 
@@ -654,17 +997,9 @@ function setArticleExpanded(isExpanded) {
 }
 
 function clearManualEditingUi() {
-    document.querySelectorAll(".aiced-card-edit-form, .aiced-inline-edit-cancel, .aiced-inline-edit-error").forEach((element) => element.remove());
-    document.querySelectorAll(".aiced-review-card--cta").forEach((card) => {
-        if (card.dataset.inlineEditing !== "true") return;
-        setInlineCtaFieldsEditable(card, false);
-        delete card.dataset.inlineEditing;
-        const editButton = card.querySelector('[data-card-edit="cta"]');
-        if (editButton) {
-            editButton.disabled = false;
-            editButton.textContent = "Edit";
-        }
-    });
+    document.querySelectorAll(".aiced-card-edit-form").forEach((element) => element.remove());
+    document.querySelector("#aiced-cta-preview").hidden = false;
+    document.querySelector("#aiced-campaign-summary").hidden = false;
 }
 
 function renderProposal(proposal, { resetStep = true } = {}) {
@@ -680,11 +1015,12 @@ function renderProposal(proposal, { resetStep = true } = {}) {
     proposalNavigation.hidden = !isDraftProposal();
     campaignReadyIntro.hidden = true;
     document.querySelector("#aiced-workflow-title").textContent = campaign.name || article.title || "Your new campaign";
-    document.querySelector("#aiced-workflow-status").textContent = proposal.workflow?.status === "published" ? "Published" : "Draft";
-    document.querySelector("#aiced-workflow-updated").textContent = proposal.workflow ? "Saved campaign workspace" : "Ready to review";
+    document.querySelector("#aiced-workflow-status").textContent = proposal.workflow?.status === "published" ? "Published" : "Draft · Ready to customize";
+    document.querySelector("#aiced-workflow-updated").textContent = proposal.workflow ? "Saved campaign workspace" : "Save & Edit Campaign to unlock editing";
     approvalState = "ready";
     savedWorkflow = null;
-    setRevisionComposerEnabled(true);
+    draftOnboarding.hidden = Boolean(proposal.workflow);
+    setRevisionComposerEnabled(false);
 
     document.querySelector("#aiced-article-category").textContent = titleCase(article.category);
     document.querySelector("#aiced-article-title").textContent = article.title;
@@ -695,7 +1031,10 @@ function renderProposal(proposal, { resetStep = true } = {}) {
     renderArticleOutline(contentBlocks);
     const textBlockCount = contentBlocks.filter((block) => block.type !== "cta").length;
     document.querySelector("#aiced-article-block-count").textContent = `${textBlockCount} article section${textBlockCount === 1 ? "" : "s"}`;
-    setArticleExpanded(false);
+    // A revision review owns the expanded article area.  Do not rebuild its
+    // comparison and then immediately hide the containing layout while a
+    // saved workflow response is being rendered.
+    setArticleExpanded(hasPendingReviewEntries());
 
     document.querySelector("#aiced-cta-headline").textContent = cta.headline || "Call to action";
     document.querySelector("#aiced-cta-body").textContent = cta.body || "";
@@ -709,7 +1048,7 @@ function renderProposal(proposal, { resetStep = true } = {}) {
     renderTags(document.querySelector("#aiced-audience-tags"), audience.tags, "All active subscribers");
     document.querySelector("#aiced-audience-rationale").textContent = audience.rationale;
     const count = Number(audience.eligibleRecipientCount) || 0;
-    document.querySelector("#aiced-audience-count").textContent = `${count} eligible active recipient${count === 1 ? "" : "s"}`;
+    document.querySelector("#aiced-audience-count").textContent = String(count);
     renderAudiencePreview(null);
 
     document.querySelector("#aiced-email-headline").textContent = article.title;
@@ -727,9 +1066,9 @@ function renderProposal(proposal, { resetStep = true } = {}) {
     }
     intro.hidden = true;
     review.hidden = false;
-    setStatus(reviewStatus, "Proposal awaiting approval. You can ask Aiced for revisions first.");
+    setStatus(reviewStatus, "Draft ready to review. Save & Edit Campaign to unlock editing.");
     approveButton.disabled = false;
-    approveButton.textContent = "Approve Article →";
+    approveButton.textContent = "Save & Edit Campaign →";
     approveButton.hidden = false;
     publishButton.hidden = true;
     sendCampaignButton.hidden = true;
@@ -753,16 +1092,19 @@ function markWorkflowSaved(workflow, summary) {
     savedWorkflow = workflow;
     if (reviewedProposal?.workflow?.status === "published") { setPublishedState(); return; }
     approvalState = "saved";
-    approveButton.disabled = true;
-    approveButton.textContent = "Saved";
-    publishButton.hidden = false;
+    draftOnboarding.hidden = true;
+    approveButton.hidden = true;
+    document.querySelector("#aiced-workflow-status").textContent = "Draft · Editing";
+    document.querySelector("#aiced-workflow-updated").textContent = "Editing enabled across Article, CTA, Campaign, and Audience";
     publishButton.disabled = false;
     publishButton.textContent = "Publish Article & Continue";
     setRevisionComposerEnabled(true);
+    renderRefineSuggestions();
     setManualEditingEnabled(true);
     renderFeaturedImage(reviewedProposal.article);
     loadAudiencePreview();
-    setStatus(reviewStatus, summary || "Saved — your article draft and campaign setup are ready.");
+    setStatus(reviewStatus, summary || "Draft editing is enabled across the campaign. Publishing remains a separate action.");
+    syncBottomActions();
 }
 
 function addField(form, label, value, key, multiline = false) {
@@ -793,95 +1135,84 @@ async function saveManualCard(card, payload, form) {
     } finally { isManualSaving = false; form.querySelectorAll("button").forEach((button) => { button.disabled = false; }); }
 }
 
-function setInlineCtaFieldsEditable(card, editable) {
-    ["#aiced-cta-headline", "#aiced-cta-body", "#aiced-cta-button-label"].forEach((selector) => {
-        const field = card.querySelector(selector);
-        field.contentEditable = String(editable);
-        field.classList.toggle("is-inline-editable", editable);
-        if (editable) {
-            field.setAttribute("role", "textbox");
-            field.setAttribute("aria-label", selector === "#aiced-cta-headline" ? "Call to action headline" : selector === "#aiced-cta-body" ? "Call to action body" : "Call to action button label");
-        } else {
-            field.removeAttribute("role");
-            field.removeAttribute("aria-label");
-        }
-    });
+function cancelManualEdit(card, form, preview) {
+    form.remove();
+    if (preview) preview.hidden = false;
 }
 
-function cancelInlineCtaEdit() {
-    renderProposal(reviewedProposal, { resetStep: false });
-    markWorkflowSaved(savedWorkflow);
+function appendEditActions(form, card, preview, submitLabel = "Save Changes") {
+    const error = document.createElement("p"); error.className = "aiced-edit-error"; error.setAttribute("aria-live", "polite"); form.append(error);
+    const actions = document.createElement("div"); actions.className = "aiced-edit-actions";
+    const save = document.createElement("button"); save.type = "submit"; save.textContent = submitLabel; save.className = "aiced-button aiced-button--primary";
+    const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "Cancel"; cancel.className = "aiced-button aiced-button--quiet";
+    cancel.addEventListener("click", () => cancelManualEdit(card, form, preview));
+    actions.append(save, cancel); form.append(actions);
 }
 
-async function saveInlineCtaEdit(card) {
-    if (isManualSaving || !savedWorkflow || !reviewedProposal) return;
+function beginCtaEdit(card) {
+    if (card.querySelector(".aiced-card-edit-form")) return;
+    const preview = document.querySelector("#aiced-cta-preview");
     const cta = (reviewedProposal.article.contentBlocks || []).find((block) => block.type === "cta") || {};
-    const payload = {
-        cta: {
-            headline: card.querySelector("#aiced-cta-headline").textContent.trim(),
-            body: card.querySelector("#aiced-cta-body").textContent.trim(),
-            buttonLabel: card.querySelector("#aiced-cta-button-label").textContent.trim(),
-        },
-    };
-    Object.keys(payload.cta).forEach((key) => { if (payload.cta[key] === (cta[key] || "")) delete payload.cta[key]; });
-    const status = card.querySelector(".aiced-inline-edit-error");
-    if (!Object.keys(payload.cta).length) { status.textContent = "No changes to save."; return; }
-
-    isManualSaving = true;
-    const editButton = card.querySelector('[data-card-edit="cta"]');
-    editButton.disabled = true; editButton.textContent = "Saving…";
-    try {
-        const response = await fetch(`/api/aiced/workflows/${encodeURIComponent(savedWorkflow.workflowToken)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-        const proposal = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(proposal.message || "Aiced Bot could not save those changes.");
-        const workflowToken = savedWorkflow.workflowToken;
-        renderProposal(proposal, { resetStep: false });
-        markWorkflowSaved({ postId: proposal.workflow.postId, workflowToken }, "Changes saved.");
-    } catch (error) {
-        status.textContent = error.message || "Aiced Bot could not save those changes.";
-        editButton.disabled = false; editButton.textContent = "Save changes";
-    } finally { isManualSaving = false; }
-}
-
-function beginInlineCtaEdit(card) {
-    const editButton = card.querySelector('[data-card-edit="cta"]');
-    if (card.dataset.inlineEditing === "true") { saveInlineCtaEdit(card); return; }
-    card.dataset.inlineEditing = "true";
-    setInlineCtaFieldsEditable(card, true);
-    editButton.textContent = "Save changes";
-    const cancel = document.createElement("button");
-    cancel.type = "button"; cancel.className = "aiced-card-edit aiced-inline-edit-cancel"; cancel.textContent = "Cancel";
-    cancel.addEventListener("click", cancelInlineCtaEdit);
-    editButton.after(cancel);
-    const status = document.createElement("p"); status.className = "aiced-inline-edit-error"; status.setAttribute("aria-live", "polite"); card.append(status);
-    card.querySelector("#aiced-cta-headline").focus();
+    const form = document.createElement("form"); form.className = "aiced-card-edit-form aiced-cta-edit-form";
+    addField(form, "CTA headline", cta.headline, "headline");
+    addField(form, "Supporting text", cta.body, "body", true);
+    addField(form, "Button label", cta.buttonLabel, "buttonLabel");
+    appendEditActions(form, card, preview);
+    form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const values = new FormData(form);
+        const payload = { cta: { headline: values.get("headline"), body: values.get("body"), buttonLabel: values.get("buttonLabel") } };
+        Object.keys(payload.cta).forEach((key) => { if (payload.cta[key] === (cta[key] || "")) delete payload.cta[key]; });
+        if (!Object.keys(payload.cta).length) { form.querySelector(".aiced-edit-error").textContent = "No changes to save."; return; }
+        saveManualCard(card, payload, form);
+    });
+    preview.hidden = true;
+    card.append(form);
+    form.querySelector("input").focus();
 }
 
 function beginManualEdit(kind) {
     if (approvalState !== "saved" || !savedWorkflow || !reviewedProposal) return;
     const card = document.querySelector(`#aiced-card-${kind}`);
-    if (kind === "cta") { beginInlineCtaEdit(card); return; }
+    if (kind === "cta") { beginCtaEdit(card); return; }
     if (card.querySelector(".aiced-card-edit-form")) return;
-    const form = document.createElement("form"); form.className = "aiced-card-edit-form";
+    const form = document.createElement("form"); form.className = `aiced-card-edit-form aiced-${kind}-edit-form`;
     const article = reviewedProposal.article;
     const blocks = article.contentBlocks || [];
     if (kind === "article") {
         addField(form, "Title", article.title, "title"); addField(form, "SEO summary", article.excerpt, "excerpt", true); addField(form, "Category", article.category, "category"); addField(form, "Tags (comma separated)", (article.tags || []).join(", "), "tags");
         blocks.filter((block) => ["heading", "paragraph", "quote"].includes(block.type)).forEach((block, index) => addField(form, `${titleCase(block.type)} ${index + 1}`, block.text, `block-${index}`, true));
-    } else if (kind === "cta") {
-        const cta = blocks.find((block) => block.type === "cta") || {}; addField(form, "Headline", cta.headline, "headline"); addField(form, "Body", cta.body, "body", true); addField(form, "Button label", cta.buttonLabel, "buttonLabel");
     } else if (kind === "campaign") {
-        addField(form, "Campaign name", reviewedProposal.campaign.name, "name"); addField(form, "Subject", reviewedProposal.campaign.subject, "subject"); addField(form, "Preheader", reviewedProposal.campaign.preheader, "preheader", true);
+        const helper = document.createElement("p"); helper.className = "aiced-edit-helper"; helper.textContent = "Campaign name is for your internal workspace. Subject and preheader are shown to recipients."; form.append(helper);
+        addField(form, "Campaign name", reviewedProposal.campaign.name, "name"); addField(form, "Email subject", reviewedProposal.campaign.subject, "subject"); addField(form, "Preheader", reviewedProposal.campaign.preheader, "preheader", true);
     } else {
-        const label = document.createElement("p"); label.textContent = "Choose existing audience tags. Every selected tag is required."; form.append(label);
+        const heading = document.createElement("div"); heading.className = "aiced-audience-edit-form__heading";
+        const eyebrow = document.createElement("p"); eyebrow.textContent = "04 / Audience";
+        const title = document.createElement("h2"); title.textContent = "Edit Audience";
+        const intro = document.createElement("p"); intro.textContent = "Choose tags to narrow your recipients.";
+        heading.append(eyebrow, title, intro);
+        const layout = document.createElement("div"); layout.className = "aiced-audience-edit-form__layout";
+        const filters = document.createElement("section"); filters.className = "aiced-audience-edit-form__filters";
+        const filterTitle = document.createElement("h3"); filterTitle.textContent = "Filter by tags";
+        const label = document.createElement("p"); label.textContent = "Recipients must match every selected tag.";
         const choices = document.createElement("div"); choices.className = "aiced-edit-tags";
-        (reviewedProposal.availableAudienceTags || reviewedProposal.audience.tags || []).forEach((tag) => { const choice = document.createElement("label"); const input = document.createElement("input"); input.type = "checkbox"; input.name = "audience-tag"; input.value = tag; input.checked = reviewedProposal.audience.tags.includes(tag); choice.append(input, document.createTextNode(tag)); choices.append(choice); }); form.append(choices);
+        (reviewedProposal.availableAudienceTags || reviewedProposal.audience.tags || []).forEach((tag) => { const choice = document.createElement("label"); const input = document.createElement("input"); input.type = "checkbox"; input.name = "audience-tag"; input.value = tag; input.checked = reviewedProposal.audience.tags.includes(tag); choice.append(input, document.createTextNode(tag)); choices.append(choice); });
+        const selectedTags = reviewedProposal.audience.tags || [];
+        const rule = document.createElement("div"); rule.className = "aiced-audience-edit-form__rule";
+        const ruleLabel = document.createElement("span"); ruleLabel.textContent = "Audience rule";
+        const ruleTitle = document.createElement("strong"); ruleTitle.textContent = selectedTags.length ? `Match all ${selectedTags.length} tag${selectedTags.length === 1 ? "" : "s"}` : "All active subscribers";
+        const ruleText = document.createElement("p"); ruleText.textContent = selectedTags.length ? selectedTags.join(" AND ") : "No tag filters are selected.";
+        rule.append(ruleLabel, ruleTitle, ruleText); filters.append(filterTitle, label, choices, rule);
+        const matches = document.createElement("section"); matches.className = "aiced-audience-edit-form__matches";
+        const matchesLabel = document.createElement("span"); matchesLabel.textContent = "Proposed audience — not saved";
+        const matchesCount = document.createElement("strong"); matchesCount.className = "aiced-audience-edit-form__count"; matchesCount.textContent = "—";
+        const matchesText = document.createElement("p"); matchesText.className = "aiced-audience-edit-form__matches-message"; matchesText.setAttribute("aria-live", "polite"); matchesText.textContent = "Updating matching recipients…";
+        const matchesList = document.createElement("ul"); matchesList.className = "aiced-audience-edit-form__preview-list";
+        matches.append(matchesLabel, matchesCount, matchesText, matchesList); layout.append(filters, matches); form.append(heading, layout);
     }
-    const error = document.createElement("p"); error.className = "aiced-edit-error"; form.append(error);
-    const actions = document.createElement("div"); actions.className = "aiced-edit-actions";
-    const save = document.createElement("button"); save.type = "submit"; save.textContent = "Save"; save.className = "aiced-button aiced-button--primary";
-    const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "Cancel"; cancel.className = "aiced-button aiced-button--quiet"; cancel.addEventListener("click", () => { renderProposal(reviewedProposal, { resetStep: false }); markWorkflowSaved(savedWorkflow); });
-    actions.append(save, cancel); form.append(actions);
+    const preview = kind === "campaign" ? document.querySelector("#aiced-campaign-summary") : null;
+    if (preview) preview.hidden = true;
+    appendEditActions(form, card, preview);
     form.addEventListener("submit", (event) => { event.preventDefault(); const values = new FormData(form); let payload;
         if (kind === "article") { const editable = blocks.filter((block) => ["heading", "paragraph", "quote"].includes(block.type)); payload = { article: { title: values.get("title"), excerpt: values.get("excerpt"), category: values.get("category"), tags: String(values.get("tags")).split(",").map((tag) => tag.trim()).filter(Boolean), contentBlocks: editable.map((block, index) => ({ type: block.type, text: values.get(`block-${index}`) })) } }; }
         else if (kind === "cta") payload = { cta: { headline: values.get("headline"), body: values.get("body"), buttonLabel: values.get("buttonLabel") } };
@@ -898,21 +1229,27 @@ function beginManualEdit(kind) {
         if (!Object.keys(section).length) { form.querySelector(".aiced-edit-error").textContent = "No changes to save."; return; }
         saveManualCard(card, payload, form);
     });
-    card.append(form);
+    if (kind === "audience") {
+        card.insertBefore(form, card.querySelector(".aiced-audience-overview"));
+        form.querySelectorAll('input[name="audience-tag"]').forEach((input) => {
+            input.addEventListener("change", () => queueProposedAudiencePreview(form));
+        });
+        queueProposedAudiencePreview(form, { immediate: true });
+    } else card.append(form);
 }
 
 async function approveReviewedProposal() {
     if (approvalState !== "ready" || !reviewedProposal) return false;
     if (hasPendingReviewEntries()) {
-        setStatus(reviewStatus, "Accept or reject the pending Aiced changes before approving the article.", true);
+        setStatus(reviewStatus, "Accept or reject the pending Aiced changes before entering campaign editing.", true);
         syncProposalApprovalState();
         return false;
     }
 
     approvalState = "saving";
     approveButton.disabled = true;
-    approveButton.textContent = "Saving…";
-    setStatus(reviewStatus, "Saving your article draft and campaign setup…");
+    approveButton.textContent = "Preparing draft…";
+    setStatus(reviewStatus, "Preparing draft…");
 
     try {
         const response = await fetch("/api/aiced/article-campaign-handoff", {
@@ -975,6 +1312,8 @@ async function submitRevision() {
             throw new Error(`${proposal.message || "Aiced Bot could not complete that revision."}${reference}`);
         }
         pendingReviewEntries = makePendingReviewEntries(proposal.revision, proposal);
+        pendingArticleRevision = null;
+        showFullRevisionComparison = null;
         pendingReviewHeading = reviewHeadingForInstruction(instruction);
         pendingReviewSummary = proposal.summary || "";
         if (!pendingReviewEntries.length) throw new Error("Aiced Bot did not produce a visible change. Try a more specific request.");
@@ -1041,6 +1380,7 @@ async function generatePackage() {
             throw new Error(`${proposal.message || "Aiced Bot could not create a package. Please try again."}${reference}`);
         }
         pendingReviewEntries = [];
+        pendingArticleRevision = null;
         pendingReviewHeading = "Aiced proposed changes";
         pendingReviewSummary = "";
         renderProposal(proposal);
@@ -1097,20 +1437,25 @@ function resetWorkspace() {
     approvalState = "idle";
     savedWorkflow = null;
     isRevising = false;
+    isApplyingRevision = false;
     campaignDelivery = null;
     selectedCampaignRecipientIds = new Set();
     activeProposalStep = 0;
     refineComposerExpanded = false;
     pendingReviewEntries = [];
+    pendingArticleRevision = null;
     pendingReviewHeading = "Aiced proposed changes";
     pendingReviewSummary = "";
+    showFullRevisionComparison = null;
     review.classList.remove("aiced-review--draft", "aiced-review--published");
     proposalNavigation.hidden = false;
     campaignReadyIntro.hidden = true;
+    draftOnboarding.hidden = true;
     approveButton.disabled = true;
-    approveButton.textContent = "Approve & Continue →";
+    approveButton.textContent = "Save & Edit Campaign →";
     approveButton.hidden = false;
     publishButton.hidden = true;
+    reviewActions.hidden = true;
     sendCampaignButton.hidden = true;
     sendConfirmation.hidden = true;
     liveArticleLink.hidden = true;

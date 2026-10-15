@@ -791,6 +791,96 @@ class AiMarketingPackageTests(unittest.TestCase):
         add.assert_not_called()
         commit.assert_not_called()
 
+    def test_proposed_audience_preview_uses_active_and_matching_without_persistence(self):
+        handoff, post = persisted_handoff(), persisted_draft_post()
+        subscriber = SimpleNamespace(
+            id=10,
+            email="james@example.com",
+            first_name="James",
+            last_name="Smith",
+            status="active",
+            tags=[tags()[0], tags()[1]],
+        )
+        with patch.object(
+            app_module.db.session,
+            "execute",
+            side_effect=[SingleResult(handoff), SingleResult(None), ScalarResult(tags()), ScalarResult([subscriber])],
+        ), patch.object(app_module.db.session, "get", return_value=post), patch.object(
+            app_module, "resolve_active_aiced_audience", return_value=[10]
+        ) as resolve, patch.object(app_module.db.session, "add") as add, patch.object(
+            app_module.db.session, "commit"
+        ) as commit:
+            response = self.client.post(
+                f"/api/aiced/workflows/{'P' * 43}/audience-preview",
+                json={"tags": ["First-Time Buyer", "Palmdale"]},
+                headers=auth_header(),
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["source"], "proposed")
+        self.assertEqual(response.get_json()["matchingCount"], 1)
+        self.assertEqual(response.get_json()["subscribers"][0]["name"], "James Smith")
+        self.assertEqual([tag.name for tag in resolve.call_args.args[0]], ["First-Time Buyer", "Palmdale"])
+        add.assert_not_called()
+        commit.assert_not_called()
+
+    def test_proposed_audience_preview_allows_empty_tags_for_all_active_subscribers(self):
+        handoff, post = persisted_handoff(), persisted_draft_post()
+        with patch.object(
+            app_module.db.session,
+            "execute",
+            side_effect=[SingleResult(handoff), SingleResult(None), ScalarResult(tags())],
+        ), patch.object(app_module.db.session, "get", return_value=post), patch.object(
+            app_module, "resolve_active_aiced_audience", return_value=[]
+        ) as resolve:
+            response = self.client.post(
+                f"/api/aiced/workflows/{'N' * 43}/audience-preview",
+                json={"tags": []},
+                headers=auth_header(),
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["matchingCount"], 0)
+        self.assertEqual(resolve.call_args.args[0], [])
+
+    def test_proposed_audience_preview_rejects_unknown_tags_without_querying_recipients(self):
+        handoff, post = persisted_handoff(), persisted_draft_post()
+        with patch.object(
+            app_module.db.session,
+            "execute",
+            side_effect=[SingleResult(handoff), SingleResult(None), ScalarResult(tags())],
+        ), patch.object(app_module.db.session, "get", return_value=post), patch.object(
+            app_module, "resolve_active_aiced_audience"
+        ) as resolve:
+            response = self.client.post(
+                f"/api/aiced/workflows/{'U' * 43}/audience-preview",
+                json={"tags": ["Deleted tag"]},
+                headers=auth_header(),
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("no longer available", response.get_json()["message"])
+        resolve.assert_not_called()
+
+    def test_proposed_audience_preview_rejects_a_prepared_campaign_snapshot(self):
+        handoff, post = persisted_handoff(), persisted_draft_post()
+        campaign = SimpleNamespace(id=99, status="pending")
+        with patch.object(
+            app_module.db.session,
+            "execute",
+            side_effect=[SingleResult(handoff), SingleResult(campaign)],
+        ), patch.object(app_module.db.session, "get", return_value=post), patch.object(
+            app_module, "resolve_active_aiced_audience"
+        ) as resolve:
+            response = self.client.post(
+                f"/api/aiced/workflows/{'R' * 43}/audience-preview",
+                json={"tags": ["First-Time Buyer"]},
+                headers=auth_header(),
+            )
+
+        self.assertEqual(response.status_code, 409)
+        resolve.assert_not_called()
+
     def test_audience_preview_uses_existing_campaign_recipients_as_the_frozen_snapshot(self):
         handoff, post = persisted_handoff(), persisted_draft_post()
         post.status = "published"

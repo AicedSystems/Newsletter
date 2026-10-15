@@ -76,9 +76,22 @@
                     <button class="aiced-button aiced-button--quiet" id="aiced-review-new-button" type="button">+ New Campaign</button>
                 </header>
                 <p class="aiced-status" id="aiced-review-status" aria-live="polite"></p>
+                <p class="visually-hidden" id="aiced-editing-disabled-explanation">Save and Edit Campaign to unlock editing.</p>
                 <section class="aiced-campaign-ready-intro" id="aiced-campaign-ready-intro" hidden>
                     <h2>Your campaign is ready to send</h2>
                     <p>Review the rendered email and prepared recipients before authorizing delivery.</p>
+                </section>
+                <section class="aiced-draft-onboarding" id="aiced-draft-onboarding" aria-labelledby="aiced-draft-onboarding-title" hidden>
+                    <div class="aiced-draft-onboarding__heading">
+                        <span class="aiced-draft-onboarding__icon" aria-hidden="true">✎</span>
+                        <div>
+                            <h2 id="aiced-draft-onboarding-title">Ready to customize?</h2>
+                            <p>Save this proposal as a draft to edit the article, call to action, campaign details, and audience.</p>
+                        </div>
+                    </div>
+                    <button class="aiced-button aiced-button--primary" id="aiced-approve-button" type="button" disabled>Save &amp; Edit Campaign <span aria-hidden="true">→</span></button>
+                    <p class="aiced-draft-onboarding__locked-note">Save &amp; Edit Campaign to unlock editing.</p>
+                    <p class="aiced-draft-onboarding__reassurance">This won't publish your article or send any emails.</p>
                 </section>
 
                 <nav class="aiced-proposal-nav" id="aiced-proposal-nav" aria-label="Aiced proposal steps">
@@ -94,7 +107,7 @@
                     <header class="aiced-proposal-viewport__header"><span>Aiced proposal</span><div><span id="aiced-proposal-position">01 / 04</span><button id="aiced-proposal-previous-top" type="button" aria-label="Previous proposal section">←</button><button id="aiced-proposal-next-top" type="button" aria-label="Next proposal section">→</button></div></header>
                     <div class="aiced-review__grid">
                     <article class="aiced-review-card aiced-review-card--article" id="aiced-card-article" data-proposal-panel="0">
-                        <div class="aiced-card__heading"><span>Article</span><div><p id="aiced-article-category"></p><button class="aiced-card-edit" data-card-edit="article" type="button" disabled>Edit</button></div></div>
+                        <div class="aiced-card__heading"><span>Article</span><div><p id="aiced-article-category"></p><span class="aiced-locked-control" data-locked-control><button class="aiced-card-edit" data-card-edit="article" type="button" disabled>Edit</button></span></div></div>
                         <h2 id="aiced-article-title"></h2>
                         <p class="aiced-review-card__excerpt" id="aiced-article-excerpt"></p>
                         <ul class="aiced-tag-list" id="aiced-article-tags" aria-label="Article tags"></ul>
@@ -103,49 +116,54 @@
                             <section class="aiced-featured-image" id="aiced-featured-image" aria-label="Featured image"></section>
                             <div class="aiced-article-media-actions">
                                 <button class="aiced-article-toggle" id="aiced-article-toggle" type="button" aria-expanded="false" aria-controls="aiced-article-content">Read article <span aria-hidden="true">↓</span></button>
-                                <a class="aiced-article-full-editor" id="aiced-article-full-editor" hidden>Open Full Editor ↗</a>
+                                <a class="aiced-article-full-editor" id="aiced-article-full-editor" hidden>Edit Article ↗</a>
                             </div>
                         </div>
                         <div class="aiced-article-summary-meta"><span id="aiced-article-block-count"></span><span>Draft article</span></div>
                         <div class="aiced-article-expanded-layout" id="aiced-article-expanded-layout" hidden>
                             <div class="aiced-article-content" id="aiced-article-content" aria-label="Article content preview"></div>
-                            <div class="aiced-article-change-review-slot" aria-live="polite"></div>
                         </div>
                     </article>
 
                     <article class="aiced-review-card aiced-review-card--cta" id="aiced-card-cta" data-proposal-panel="1">
-                        <div class="aiced-card__heading"><span>Call to action</span><button class="aiced-card-edit" data-card-edit="cta" type="button" disabled>Edit</button></div>
-                        <h2 id="aiced-cta-headline"></h2>
-                        <p id="aiced-cta-body"></p>
-                        <span class="aiced-cta-button-preview" id="aiced-cta-button-label"></span>
-                        <p class="aiced-card__meta"><span id="aiced-cta-action"></span><span aria-hidden="true">·</span><span id="aiced-cta-intent"></span></p>
+                        <div class="aiced-card__heading"><span>Call to action</span><span class="aiced-locked-control" data-locked-control><button class="aiced-card-edit" data-card-edit="cta" type="button" disabled>Edit</button></span></div>
+                        <div class="aiced-cta-preview" id="aiced-cta-preview">
+                            <h2 id="aiced-cta-headline"></h2>
+                            <p id="aiced-cta-body"></p>
+                            <span class="aiced-cta-button-preview" id="aiced-cta-button-label"></span>
+                            <p class="aiced-card__meta"><span id="aiced-cta-action"></span><span aria-hidden="true">·</span><span id="aiced-cta-intent"></span></p>
+                        </div>
                     </article>
 
                     <article class="aiced-review-card" id="aiced-card-campaign" data-proposal-panel="2">
-                        <div class="aiced-card__heading"><span>Campaign</span><button class="aiced-card-edit" data-card-edit="campaign" type="button" disabled>Edit</button></div>
-                        <dl class="aiced-details">
-                            <div><dt>Subject</dt><dd id="aiced-campaign-subject"></dd></div>
-                            <div><dt>Preheader</dt><dd id="aiced-campaign-preheader"></dd></div>
-                            <div class="aiced-details__secondary"><dt>Campaign name</dt><dd id="aiced-campaign-name"></dd></div>
+                        <div class="aiced-card__heading"><span>Campaign</span><span class="aiced-locked-control" data-locked-control><button class="aiced-card-edit" data-card-edit="campaign" type="button" disabled>Edit</button></span></div>
+                        <dl class="aiced-details" id="aiced-campaign-summary">
+                            <div class="aiced-details__subject"><dt>Email subject</dt><dd id="aiced-campaign-subject"></dd></div>
+                            <div class="aiced-details__preheader"><dt>Preheader</dt><dd id="aiced-campaign-preheader"></dd></div>
+                            <div class="aiced-details__secondary"><dt>Internal campaign name</dt><dd id="aiced-campaign-name"></dd></div>
                         </dl>
                     </article>
 
                     <article class="aiced-review-card" id="aiced-card-audience" data-proposal-panel="3">
-                        <div class="aiced-card__heading"><span>Audience</span><button class="aiced-card-edit" data-card-edit="audience" type="button" disabled>Edit</button></div>
+                        <div class="aiced-card__heading"><span>Audience</span><span class="aiced-locked-control" data-locked-control><button class="aiced-card-edit" data-card-edit="audience" type="button" disabled>Edit</button></span></div>
                         <div class="aiced-audience-overview">
-                            <div><strong class="aiced-audience-count" id="aiced-audience-count"></strong><span>eligible active subscribers</span></div>
+                            <div class="aiced-audience-overview__count"><strong class="aiced-audience-count" id="aiced-audience-count"></strong><span>Eligible recipients</span><p>Currently matching active subscribers. Final recipients are confirmed during campaign preparation.</p></div>
                             <div><span class="aiced-audience-overview__label">Selected tags</span><ul class="aiced-tag-list" id="aiced-audience-tags" aria-label="Recommended audience tags"></ul></div>
-                            <div><span class="aiced-audience-overview__label">Why Aiced chose this audience</span><p id="aiced-audience-rationale"></p></div>
                         </div>
+                        <section class="aiced-audience-rationale" aria-labelledby="aiced-audience-rationale-title"><h2 id="aiced-audience-rationale-title">Why Aiced chose this audience</h2><p id="aiced-audience-rationale"></p></section>
                         <section class="aiced-audience-preview" aria-labelledby="aiced-audience-preview-title">
                             <header><div><h2 id="aiced-audience-preview-title">Matching subscribers</h2><p id="aiced-audience-preview-message" aria-live="polite"></p></div><a href="{{ url_for('subscribers') }}">Manage subscribers ↗</a></header>
                             <div class="aiced-audience-preview__table-wrap">
                                 <table id="aiced-audience-preview-table" hidden>
                                     <thead><tr><th>Name</th><th>Email</th><th>Tags</th><th>Status</th></tr></thead>
-                                    <tbody id="aiced-audience-preview-list"></tbody>
-                                </table>
-                            </div>
+                                <tbody id="aiced-audience-preview-list"></tbody>
+                            </table>
+                        </div>
                         </section>
+                    </article>
+
+                    <article class="aiced-review-card aiced-review-card--email" data-proposal-panel="4">
+                        <div class="aiced-card__heading"><span>Email preview</span><p>Preview</p></div>
                         <section class="aiced-draft-email-preview" aria-labelledby="aiced-draft-email-preview-title">
                             <div class="aiced-card__heading"><span id="aiced-draft-email-preview-title">Email preview</span><p>Draft preview</p></div>
                             <div class="aiced-email-placeholder">
@@ -157,10 +175,6 @@
                             </div>
                             <p class="aiced-card__note">The rendered email campaign preview becomes available after the article is published.</p>
                         </section>
-                    </article>
-
-                    <article class="aiced-review-card aiced-review-card--email" data-proposal-panel="4">
-                        <div class="aiced-card__heading"><span>Email preview</span><p>Preview</p></div>
                         <iframe class="aiced-email-rendered-preview" id="aiced-email-rendered-preview" title="Published email preview" hidden></iframe>
                     </article>
 
@@ -191,15 +205,14 @@
                         </section>
                     </article>
                 </div>
-                    <footer class="aiced-proposal-viewport__footer"><button class="aiced-button aiced-button--quiet" id="aiced-proposal-previous" type="button">← Previous</button><button class="aiced-button aiced-button--primary" id="aiced-proposal-next" type="button">Next: Call to Action →</button></footer>
+                    <footer class="aiced-proposal-viewport__footer"><button class="aiced-button aiced-button--quiet" id="aiced-proposal-previous" type="button">← Previous</button><button class="aiced-button aiced-button--quiet" id="aiced-proposal-next" type="button">Next: Call to Action →</button></footer>
                 </section>
 
-                <footer class="aiced-review__actions">
-                    <button class="aiced-button aiced-button--primary" id="aiced-approve-button" type="button" disabled>Approve &amp; Continue <span aria-hidden="true">→</span></button>
+                <footer class="aiced-review__actions" id="aiced-review-actions" aria-label="Final publishing actions" hidden>
                     <button class="aiced-button aiced-button--primary" id="aiced-publish-button" type="button" hidden>Publish Article &amp; Continue</button>
                     <button class="aiced-button aiced-button--primary" id="aiced-send-campaign-button" type="button" hidden>Send Campaign</button>
                     <a class="aiced-button aiced-button--quiet" id="aiced-live-article" target="_blank" rel="noopener" hidden>View Live Article ↗</a>
-                    <p>Nothing has been saved, published, or sent.</p>
+                    <p>Editing creates a draft only. Publishing and sending remain separate actions.</p>
                 </footer>
                 <section class="aiced-refine" aria-label="Ask Aiced to refine this proposal">
                     <div class="aiced-refine__header">

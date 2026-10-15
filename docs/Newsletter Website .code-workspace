@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../../Website Template/template-02-elegant_strong"
+		}
+	],
+	"settings": {
+		"liveServer.settings.port": 5501
+	}
+}
