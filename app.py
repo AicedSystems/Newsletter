@@ -471,14 +471,37 @@ def build_aiced_featured_image_prompt(post):
     )
 
 
+def sanitize_aiced_provider_message(error, sensitive_values=()):
+    """Return a short provider diagnostic without secrets or user content."""
+    provider_message = getattr(error, "message", None)
+    if not isinstance(provider_message, str) or not provider_message.strip():
+        return "unavailable"
+
+    provider_message = " ".join(provider_message.split())[:300]
+    provider_message = re.sub(
+        r"(?i)(authorization|api[ _-]?key)\s*[:=]\s*\S+",
+        r"\1=[redacted]",
+        provider_message,
+    )
+    provider_message = re.sub(
+        r"\b(?:sk|re)[_-][A-Za-z0-9_-]+\b", "[redacted]", provider_message
+    )
+    for sensitive_value in sensitive_values:
+        if isinstance(sensitive_value, str) and sensitive_value:
+            provider_message = provider_message.replace(sensitive_value, "[redacted]")
+    return provider_message
+
+
 def request_aiced_featured_image(post):
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         return None, "Aiced Bot is not configured on this server.", 503
+    model_name = os.environ.get("AICED_IMAGE_MODEL", "gpt-image-1")
+    prompt = build_aiced_featured_image_prompt(post)
     try:
         response = create_openai_client(api_key).images.generate(
-            model=os.environ.get("AICED_IMAGE_MODEL", "gpt-image-1"),
-            prompt=build_aiced_featured_image_prompt(post),
+            model=model_name,
+            prompt=prompt,
             size="1536x1024",
         )
         encoded = response.data[0].b64_json
@@ -492,9 +515,17 @@ def request_aiced_featured_image(post):
         provider_status = getattr(error, "status_code", None)
         if not isinstance(provider_status, int) or isinstance(provider_status, bool):
             provider_status = None
+        provider_message = sanitize_aiced_provider_message(
+            error,
+            [api_key, prompt, post.title, post.excerpt, post.category, post.tags],
+        )
         app.logger.warning(
-            "Aiced featured image provider failure [reference=%s type=%s status=%s]",
-            reference_id, type(error).__name__, provider_status,
+            "Aiced featured image provider failure [reference=%s type=%s status=%s model=%s message=%s]",
+            reference_id,
+            type(error).__name__,
+            provider_status,
+            model_name,
+            provider_message,
         )
         return None, "Aiced Bot could not create an image. Please try again.", 502
     if not image_bytes or len(image_bytes) > MAXIMUM_ARTICLE_IMAGE_BYTES:

@@ -1452,6 +1452,31 @@ class AiMarketingPackageTests(unittest.TestCase):
         self.assertNotIn("First-Time Buyer", prompt)
         self.assertNotIn("subscriber", prompt.lower())
 
+    def test_featured_image_provider_failure_logs_a_sanitized_diagnostic(self):
+        class ProviderError(Exception):
+            status_code = 400
+            message = "Authorization: Bearer sk_test_secret rejected Planning Your First Home Purchase"
+
+        post = persisted_draft_post()
+        client = SimpleNamespace(images=SimpleNamespace(generate=Mock(side_effect=ProviderError())))
+        with patch.dict(
+            os.environ,
+            {"OPENAI_API_KEY": "test-key", "AICED_IMAGE_MODEL": "gpt-image-1"},
+        ), patch.object(
+            app_module, "create_openai_client", return_value=client
+        ), patch.object(app_module.app.logger, "warning") as warning:
+            result, error, status = app_module.request_aiced_featured_image(post)
+
+        self.assertIsNone(result)
+        self.assertEqual(error, "Aiced Bot could not create an image. Please try again.")
+        self.assertEqual(status, 502)
+        logged_values = " ".join(map(str, warning.call_args.args))
+        self.assertIn("ProviderError", logged_values)
+        self.assertIn(400, warning.call_args.args)
+        self.assertIn("gpt-image-1", logged_values)
+        self.assertNotIn("sk_test_secret", logged_values)
+        self.assertNotIn(post.title, logged_values)
+
     def test_revision_rejects_non_draft_before_openai(self):
         handoff, post = persisted_handoff(), persisted_draft_post()
         post.status = "published"
