@@ -114,6 +114,34 @@ function loadRenderer({ revision, article = fixtureArticle() }) {
     return { context, articleContent, articleExpandedLayout, article };
 }
 
+function loadWorkflowPatchPayloadBuilder() {
+    const script = fs.readFileSync(path.join(__dirname, "..", "static/js/aiced_workspace.js"), "utf8");
+    const start = script.indexOf("function revisionPayload(entries)");
+    const end = script.indexOf("function cloneArticleForRevision(article)");
+    assert.ok(start >= 0 && end > start, "workflow PATCH payload helper must exist");
+    const context = {};
+    vm.runInNewContext(script.slice(start, end), context);
+    return context.workflowPatchPayload;
+}
+
+test("persisted article approval excludes retained CTA and media from its PATCH payload", () => {
+    const workflowPatchPayload = loadWorkflowPatchPayloadBuilder();
+    const fullBlocks = [
+        { type: "heading", text: "Plan your budget" },
+        { type: "paragraph", text: "A revised paragraph." },
+        { type: "image", url: "https://example.com/image.png", alt: "Neighborhood" },
+        { type: "youtube", url: "https://www.youtube.com/watch?v=abc" },
+        fixtureArticle().contentBlocks[2],
+    ];
+    const payload = { article: { contentBlocks: fullBlocks }, cta: { headline: "Keep this separate" } };
+
+    const patchPayload = workflowPatchPayload(payload);
+
+    assert.deepEqual(patchPayload.article.contentBlocks.map((block) => block.type), ["heading", "paragraph"]);
+    assert.deepEqual(patchPayload.cta, payload.cta);
+    assert.equal(payload.article.contentBlocks.length, 5, "comparison data remains complete and unchanged");
+});
+
 test("content-block revision renders Original and Revised by Aiced side by side", () => {
     const { context, articleContent, articleExpandedLayout, article } = loadRenderer({
         revision: { article: { contentBlocks: [...fixtureArticle().contentBlocks.slice(0, 2), { type: "paragraph", text: "Compare neighborhoods at your own pace." }, fixtureArticle().contentBlocks[2]] } },

@@ -614,6 +614,23 @@ function revisionPayload(entries) {
     }, {});
 }
 
+function workflowPatchPayload(payload) {
+    if (!payload?.article?.contentBlocks) return payload;
+    const editableBlockTypes = new Set(["heading", "paragraph", "quote"]);
+    return {
+        ...payload,
+        article: {
+            ...payload.article,
+            // Review comparisons need the complete article. The PATCH endpoint
+            // intentionally accepts only Aiced-owned text blocks and restores
+            // media plus the unchanged final CTA from the saved article.
+            contentBlocks: payload.article.contentBlocks.filter(
+                (block) => editableBlockTypes.has(block?.type)
+            ),
+        },
+    };
+}
+
 function cloneArticleForRevision(article) {
     return {
         ...article,
@@ -793,7 +810,7 @@ async function acceptPendingRevision() {
         }
         const workflowToken = savedWorkflow.workflowToken;
         const response = await fetch(`/api/aiced/workflows/${encodeURIComponent(workflowToken)}`, {
-            method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+            method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(workflowPatchPayload(payload)),
         });
         const proposal = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(proposal.message || "Aiced Bot could not save those changes.");
@@ -935,7 +952,7 @@ function renderLocalRevisionResult(status) {
 
 async function savePendingReviewEntry(entry, payload, successStatus) {
     const workflowToken = savedWorkflow.workflowToken;
-    const response = await fetch(`/api/aiced/workflows/${encodeURIComponent(workflowToken)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const response = await fetch(`/api/aiced/workflows/${encodeURIComponent(workflowToken)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(workflowPatchPayload(payload)) });
     const proposal = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(proposal.message || "Aiced Bot could not save that change.");
     entry.status = successStatus;

@@ -1311,6 +1311,15 @@ class AiMarketingPackageTests(unittest.TestCase):
         self.assertNotIn("changed", schema["properties"]["cta"]["required"])
         self.assertNotIn("oneOf", json.dumps(schema))
 
+    def test_revision_instructions_require_valid_excerpt_replacements(self):
+        instructions = app_module.AI_WORKFLOW_REVISION_INSTRUCTIONS
+        excerpt_schema = app_module.AI_WORKFLOW_REVISION_SCHEMA["properties"]["article"]["properties"]["excerpt"]
+
+        self.assertIn("Do not change article.excerpt unless", instructions)
+        self.assertIn("155 characters or fewer", instructions)
+        self.assertIn("end with a period, exclamation mark, or question mark", instructions)
+        self.assertIn("Use null unless", excerpt_schema["description"])
+
     def test_cta_revision_preserves_non_cta_blocks(self):
         source = {key: package()["article"][key] for key in ("title", "excerpt", "category", "tags", "contentBlocks")}
         revision = revision_template()

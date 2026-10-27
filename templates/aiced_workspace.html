@@ -216,7 +216,17 @@
                 </footer>
                 <section class="aiced-refine" aria-label="Ask Aiced to refine this proposal">
                     <div class="aiced-refine__header">
-                        <label for="aiced-refine-request"><span aria-hidden="true">✧</span> Ask Aiced</label>
+                        <label for="aiced-refine-request">
+                            <svg class="aiced-refine__robot-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                                <path d="M12 3v3"></path>
+                                <path d="M9.5 3h5"></path>
+                                <rect x="4.5" y="7" width="15" height="12" rx="3"></rect>
+                                <circle cx="9" cy="12.5" r="1"></circle>
+                                <circle cx="15" cy="12.5" r="1"></circle>
+                                <path d="M9 16h6"></path>
+                            </svg>
+                            Ask Aiced
+                        </label>
                         <span>Refine your proposal</span>
                     </div>
                     <textarea id="aiced-refine-request" rows="3" maxlength="500" placeholder="Ask Aiced to change anything..." disabled></textarea>
